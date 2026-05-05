@@ -3,84 +3,262 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Barebones Voice</title>
+    <title>RDK Voice Chat | Global Lobby</title>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f0f2f5; }
-        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
-        #my-id { font-weight: bold; color: #1a73e8; background: #e8f0fe; padding: 5px; border-radius: 4px; }
-        input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; margin-top: 10px; width: 80%; }
-        button { padding: 10px 20px; background: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; }
-        button:hover { background: #1557b0; }
-        .status { margin-top: 15px; font-size: 0.9rem; color: #666; }
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #0ea5e9; --green: #10b981; --red: #ef4444; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
+        
+        .container { background: var(--card); width: 480px; padding: 25px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); position: relative; border: 1px solid #334155; }
+        
+        .main-content { display: flex; gap: 15px; margin-top: 15px; }
+        .chat-area { flex: 1.5; }
+        .user-sidebar { flex: 0.8; background: #0f172a; border-radius: 12px; padding: 12px; border: 1px solid #334155; display: flex; flex-direction: column; }
+
+        #chat-box { height: 200px; background: #0f172a; border-radius: 10px; overflow-y: auto; padding: 12px; margin-bottom: 10px; border: 1px solid #1e293b; font-size: 0.85rem; }
+        .msg { margin-bottom: 6px; border-left: 3px solid var(--accent); padding-left: 8px; line-height: 1.4; }
+        .msg b { color: var(--accent); }
+
+        .user-item { font-size: 0.75rem; padding: 6px 10px; background: #1e293b; border-radius: 6px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; border: 1px solid #334155; }
+        .status-dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; box-shadow: 0 0 5px var(--green); }
+
+        input { width: 100%; padding: 12px; border-radius: 8px; border: none; background: #334155; color: white; margin: 5px 0; box-sizing: border-box; outline: none; transition: 0.3s; }
+        input:focus { background: #475569; }
+        
+        button { padding: 10px 15px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { filter: brightness(1.2); transform: translateY(-1px); }
+        
+        #settings-panel { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--card); border-radius: 20px; padding: 25px; box-sizing: border-box; z-index: 10; }
+        .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 0.9rem; }
+        
+        .notify { position: absolute; top: 10px; right: 10px; background: var(--green); padding: 6px 14px; border-radius: 20px; font-size: 0.7rem; display: none; font-weight: bold; z-index: 5; }
+        .ping-display { font-size: 0.7rem; color: #94a3b8; font-family: monospace; font-weight: bold; }
+        
+        .credit { font-size: 0.7rem; color: #475569; text-align: center; margin-top: 15px; border-top: 1px solid #334155; padding-top: 10px; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h2>Voice Chat</h2>
-    <p>Your ID: <span id="my-id">Initializing...</span></p>
+<div class="container">
+    <div id="new-msg-alert" class="notify">NEW MESSAGE</div>
     
-    <input type="text" id="receiver-id" placeholder="Enter Friend's ID">
-    <br>
-    <button onclick="startCall()">Connect Voice</button>
-    
-    <div class="status" id="status">Waiting for connection...</div>
+    <div style="display:flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h2 style="margin:0; color:var(--accent); font-size: 1.5rem;">RDK Lobby</h2>
+            <div id="ping-text" class="ping-display" style="display:none;">Ping: -- ms</div>
+        </div>
+        <button onclick="toggleSettings()" style="background:transparent; font-size: 1.2rem; padding:0;">⚙️</button>
+    </div>
+
+    <div id="setup">
+        <input type="text" id="username" placeholder="Pick a Nickname" onkeypress="if(event.key==='Enter') initLobby()">
+        <button id="join-btn" onclick="initLobby()" style="width:100%; margin-top:10px;">Join Global Lobby</button>
+    </div>
+
+    <div id="main-ui" style="display:none;">
+        <div class="main-content">
+            <div class="chat-area">
+                <div id="chat-box"></div>
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="message-input" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+            <div class="user-sidebar">
+                <div style="font-size: 0.65rem; color: #94a3b8; margin-bottom: 8px; font-weight: bold; text-transform: uppercase;">Active Users</div>
+                <div id="user-list"></div>
+            </div>
+        </div>
+
+        <div style="margin-top:15px; border-top: 1px solid #334155; padding-top:15px;">
+            <input type="text" id="target-id" placeholder="Friend's Nickname">
+            <button onclick="connectToFriend()" style="width:100%; background:var(--green);">Connect & Sync</button>
+        </div>
+        
+        <button id="mute-btn" onclick="toggleMute()" style="width:100%; margin-top:10px; background:#64748b;">Mute Mic</button>
+    </div>
+
+    <div id="settings-panel">
+        <h3 style="margin-top: 0;">Lobby Settings</h3>
+        <div class="setting-item">
+            <span>Anti-Chopping</span>
+            <input type="checkbox" id="set-limiter" checked onchange="applyAudioSettings()" style="width:20px;">
+        </div>
+        <div class="setting-item">
+            <span>Noise Suppression</span>
+            <input type="checkbox" id="set-noise" checked onchange="applyAudioSettings()" style="width:20px;">
+        </div>
+        <button onclick="toggleSettings()" style="width:100%; margin-top:10px;">Return</button>
+    </div>
+
+    <div class="credit">System by <b>RDK</b> | HTTPS REQUIRED</div>
 </div>
 
-<!-- Audio element to play the friend's voice -->
-<audio id="remote-audio" autoplay></audio>
+<div id="audio-container" style="display:none;"></div>
+<audio id="notif-sound" src="https://actions.google.com/sounds/v1/communication/notification_high_intensity.ogg"></audio>
 
-<!-- PeerJS Library -->
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-
 <script>
-    const peer = new Peer(); 
-    let localStream;
+    let peer, rawStream, processedStream, isMuted = false, myName = "", myFullID = "";
+    let audioCtx, compressor, filter;
+    let connections = {}; 
+    let pingInterval;
 
-    // 1. Ask for Mic Permissions immediately
-    navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => {
-            localStream = stream;
-            console.log("Microphone accessible");
-        })
-        .catch(err => {
-            document.getElementById('status').innerText = "Mic Error: " + err;
-        });
-
-    // 2. Show ID when PeerJS connects to its signaling server
-    peer.on('open', id => {
-        document.getElementById('my-id').innerText = id;
-        document.getElementById('status').innerText = "Share your ID with a friend.";
-    });
-
-    // 3. Handling Incoming Calls
-    peer.on('call', call => {
-        document.getElementById('status').innerText = "Incoming call...";
-        call.answer(localStream); 
-        call.on('stream', remoteStream => {
-            document.getElementById('remote-audio').srcObject = remoteStream;
-            document.getElementById('status').innerText = "Connected!";
-        });
-    });
-
-    // 4. Starting a Call
-    function startCall() {
-        const friendId = document.getElementById('receiver-id').value;
-        if (!friendId) return alert("Paste an ID first!");
+    async function initLobby() {
+        myName = document.getElementById('username').value.trim();
+        if (!myName) return alert("Please enter a name");
         
-        document.getElementById('status').innerText = "Connecting to " + friendId + "...";
-        const call = peer.call(friendId, localStream);
+        document.getElementById('join-btn').innerText = "Connecting...";
+        document.getElementById('join-btn').disabled = true;
+
+        try {
+            rawStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioCtx.createMediaStreamSource(rawStream);
+            const destination = audioCtx.createMediaStreamDestination();
+            
+            compressor = audioCtx.createDynamicsCompressor();
+            filter = audioCtx.createBiquadFilter();
+            filter.type = "highpass";
+            filter.frequency.setValueAtTime(100, audioCtx.currentTime);
+
+            source.connect(filter);
+            filter.connect(compressor);
+            compressor.connect(destination);
+            processedStream = destination.stream;
+
+            // FIX: Added a small random suffix to prevent "Name Already Taken" hangs
+            myFullID = "RDK-" + myName + "-" + Math.floor(Math.random() * 999);
+
+            peer = new Peer(myFullID, {
+                config: {
+                    'iceServers': [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' }
+                    ]
+                }
+            });
+
+            peer.on('open', (id) => {
+                document.getElementById('setup').style.display = 'none';
+                document.getElementById('main-ui').style.display = 'block';
+                updateUserList();
+            });
+
+            peer.on('call', call => {
+                call.answer(processedStream);
+                setupVoice(call);
+            });
+
+            peer.on('connection', conn => setupText(conn));
+
+            peer.on('error', err => {
+                console.error(err);
+                document.getElementById('join-btn').innerText = "Join Global Lobby";
+                document.getElementById('join-btn').disabled = false;
+                alert("Connection Error: " + err.type);
+            });
+
+        } catch (e) {
+            alert("Mic Error: " + e.message);
+        }
+    }
+
+    function setupText(conn) {
+        if(connections[conn.peer]) return;
+        connections[conn.peer] = conn;
+        document.getElementById('ping-text').style.display = 'block';
         
-        call.on('stream', remoteStream => {
-            document.getElementById('remote-audio').srcObject = remoteStream;
-            document.getElementById('status').innerText = "Connected!";
+        conn.on('data', data => {
+            if (typeof data === 'object') {
+                if (data.type === 'ping') {
+                    conn.send({ type: 'pong', time: data.time });
+                } else if (data.type === 'pong') {
+                    const rtt = Date.now() - data.time;
+                    document.getElementById('ping-text').innerText = `Ping: ${rtt} ms`;
+                } else if (data.type === 'chat') {
+                    addMsg(conn.peer.split('-')[1], data.text);
+                    notifyUser();
+                }
+            }
         });
 
-        call.on('error', err => {
-            document.getElementById('status').innerText = "Call failed: " + err;
+        conn.on('close', () => { delete connections[conn.peer]; updateUserList(); });
+        updateUserList();
+
+        if(!pingInterval) {
+            pingInterval = setInterval(() => {
+                Object.values(connections).forEach(c => {
+                    if (c.open) c.send({ type: 'ping', time: Date.now() });
+                });
+            }, 2000);
+        }
+    }
+
+    function updateUserList() {
+        const list = document.getElementById('user-list');
+        list.innerHTML = `<div class="user-item"><span class="status-dot"></span><b>${myName}</b></div>`;
+        Object.keys(connections).forEach(id => {
+            const cleanName = id.split('-')[1];
+            list.innerHTML += `<div class="user-item"><span class="status-dot"></span>${cleanName}</div>`;
         });
     }
-</script>
 
+    function connectToFriend() {
+        const friend = document.getElementById('target-id').value.trim();
+        if(!friend) return;
+        // Search logic: Since IDs now have random suffixes, this app is P2P direct.
+        // For simple use, the friend must provide their FULL ID or you connect via standard name if they used the OLD version.
+        // TO KEEP IT SIMPLE: Friend should enter the EXACT name you see in their lobby.
+        const fullId = friend.startsWith("RDK-") ? friend : "RDK-LOBBY-" + friend;
+        
+        setupVoice(peer.call(fullId, processedStream));
+        setupText(peer.connect(fullId));
+    }
+
+    function setupVoice(call) {
+        const audio = document.createElement('audio');
+        audio.autoplay = true;
+        call.on('stream', s => {
+            audio.srcObject = s;
+            document.getElementById('audio-container').appendChild(audio);
+        });
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('message-input');
+        if(!input.value) return;
+        const dataObj = { type: 'chat', text: input.value };
+        Object.values(connections).forEach(c => { if (c.open) c.send(dataObj); });
+        addMsg("You", input.value);
+        input.value = "";
+    }
+
+    function addMsg(user, text) {
+        const box = document.getElementById('chat-box');
+        box.innerHTML += `<div class="msg"><b>${user}:</b> ${text}</div>`;
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function toggleSettings() {
+        const panel = document.getElementById('settings-panel');
+        panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function toggleMute() {
+        isMuted = !isMuted;
+        rawStream.getAudioTracks()[0].enabled = !isMuted;
+        const btn = document.getElementById('mute-btn');
+        btn.innerText = isMuted ? "Unmute Mic" : "Mute Mic";
+        btn.style.background = isMuted ? "var(--red)" : "#64748b";
+    }
+
+    function notifyUser() {
+        try { document.getElementById('notif-sound').play(); } catch(e) {}
+        const alertBox = document.getElementById('new-msg-alert');
+        alertBox.style.display = 'block';
+        setTimeout(() => alertBox.style.display = 'none', 3000);
+    }
+</script>
 </body>
 </html>
