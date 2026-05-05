@@ -3,43 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RDK Voice Chat Ultimate</title>
+    <title>RDK Voice & Text</title>
     <style>
         :root { --bg: #0f172a; --card: #1e293b; --accent: #0ea5e9; --green: #10b981; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
         .container { background: var(--card); width: 420px; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); position: relative; }
         
-        /* Chat UI */
-        #chat-box { height: 150px; background: #0f172a; border-radius: 10px; overflow-y: auto; padding: 12px; margin-bottom: 10px; border: 1px solid #334155; }
-        .msg { margin-bottom: 5px; font-size: 0.9rem; animation: slideIn 0.2s ease-out; }
-        @keyframes slideIn { from { transform: translateX(-10px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        
-        /* Inputs & Buttons */
-        input { width: 100%; padding: 12px; border-radius: 8px; border: none; background: #334155; color: white; margin: 5px 0; box-sizing: border-box; }
+        #chat-box { height: 160px; background: #0f172a; border-radius: 10px; overflow-y: auto; padding: 12px; margin-bottom: 10px; border: 1px solid #334155; }
+        .msg { margin-bottom: 5px; font-size: 0.9rem; border-left: 3px solid var(--accent); padding-left: 8px; }
+        .msg b { color: var(--accent); }
+
+        input { width: 100%; padding: 12px; border-radius: 8px; border: none; background: #334155; color: white; margin: 5px 0; box-sizing: border-box; outline: none; }
         button { padding: 10px 15px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
         button:hover { filter: brightness(1.2); }
         
-        /* Settings Overlay */
         #settings-panel { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--card); border-radius: 20px; padding: 25px; box-sizing: border-box; z-index: 10; }
         .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 
-        .notify { position: absolute; top: 10px; right: 10px; background: var(--green); padding: 5px 10px; border-radius: 20px; font-size: 0.7rem; display: none; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-
-        .credit { font-size: 0.75rem; color: #475569; text-align: center; margin-top: 15px; }
+        .notify { position: absolute; top: 10px; right: 10px; background: var(--green); padding: 5px 12px; border-radius: 20px; font-size: 0.7rem; display: none; font-weight: bold; }
+        .credit { font-size: 0.75rem; color: #475569; text-align: center; margin-top: 15px; border-top: 1px solid #334155; padding-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div id="new-msg-alert" class="notify">NEW MESSAGE</div>
-    <div style="display:flex; justify-content: space-between; align-items: center;">
-        <h2 style="color:var(--accent); margin:0;">RDK Lobby</h2>
-        <button onclick="toggleSettings()" style="background:transparent; font-size: 1.2rem;">⚙️</button>
+    
+    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h2 style="margin:0; color:var(--accent);">RDK Lobby</h2>
+        <button onclick="toggleSettings()" style="background:transparent; font-size: 1.2rem; padding:0;">⚙️</button>
     </div>
 
     <div id="setup">
-        <input type="text" id="username" placeholder="Your Nickname">
+        <input type="text" id="username" placeholder="Enter Nickname">
         <button onclick="initLobby()" style="width:100%; margin-top:10px;">Join Chat</button>
     </div>
 
@@ -49,8 +45,10 @@
             <input type="text" id="message-input" placeholder="Type..." onkeypress="if(event.key==='Enter') sendMessage()">
             <button onclick="sendMessage()">Send</button>
         </div>
-        <input type="text" id="target-id" placeholder="Friend's Name">
-        <button onclick="connectToFriend()" style="width:100%; background:var(--green);">Call Friend</button>
+        <div style="margin-top:10px; border-top: 1px solid #334155; padding-top:10px;">
+            <input type="text" id="target-id" placeholder="Friend's Name">
+            <button onclick="connectToFriend()" style="width:100%; background:var(--green);">Call Friend</button>
+        </div>
         <button id="mute-btn" onclick="toggleMute()" style="width:100%; margin-top:10px; background:#64748b;">Mute Mic</button>
     </div>
 
@@ -59,17 +57,17 @@
         <h3>Settings</h3>
         <div class="setting-item">
             <span>Anti-Chopping (Limiter)</span>
-            <input type="checkbox" id="set-limiter" checked onchange="applySettings()" style="width:20px;">
+            <input type="checkbox" id="set-limiter" checked onchange="applyAudioSettings()" style="width:20px;">
         </div>
         <div class="setting-item">
             <span>Noise Suppression</span>
-            <input type="checkbox" id="set-noise" checked onchange="applySettings()" style="width:20px;">
+            <input type="checkbox" id="set-noise" checked onchange="applyAudioSettings()" style="width:20px;">
         </div>
         <div class="setting-item">
             <span>Message Sound</span>
             <input type="checkbox" id="set-sound" checked style="width:20px;">
         </div>
-        <button onclick="toggleSettings()" style="width:100%; margin-top:20px;">Close</button>
+        <button onclick="toggleSettings()" style="width:100%; margin-top:20px;">Back to Chat</button>
     </div>
 
     <div class="credit">System by <b>RDK</b></div>
@@ -78,35 +76,63 @@
 <div id="audio-container"></div>
 <audio id="notif-sound" src="https://actions.google.com/sounds/v1/communication/notification_high_intensity.ogg"></audio>
 
-<script src="audio-processor.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 <script>
     let peer, rawStream, processedStream, isMuted = false;
-    let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let audioCtx, compressor, filter;
     let connections = [];
 
     async function initLobby() {
         const name = document.getElementById('username').value.trim();
         if (!name) return;
+
         try {
             rawStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            processedStream = createEnhancedStream(rawStream, audioCtx);
             
+            // Setup Audio Processing
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioCtx.createMediaStreamSource(rawStream);
+            const destination = audioCtx.createMediaStreamDestination();
+
+            compressor = audioCtx.createDynamicsCompressor();
+            compressor.threshold.setValueAtTime(-24, audioCtx.currentTime);
+            compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
+
+            filter = audioCtx.createBiquadFilter();
+            filter.type = "highpass";
+            filter.frequency.setValueAtTime(100, audioCtx.currentTime);
+
+            source.connect(filter);
+            filter.connect(compressor);
+            compressor.connect(destination);
+            processedStream = destination.stream;
+
+            // PeerJS Setup
             peer = new Peer("RDK-LOBBY-" + name);
             peer.on('open', () => {
                 document.getElementById('setup').style.display = 'none';
                 document.getElementById('main-ui').style.display = 'block';
             });
-            peer.on('call', call => { call.answer(processedStream); setupVoice(call); });
+
+            peer.on('call', call => {
+                call.answer(processedStream);
+                setupVoice(call);
+            });
+
             peer.on('connection', conn => setupText(conn));
-        } catch (e) { alert("Mic Access Error"); }
+
+        } catch (e) {
+            alert("Mic Access Denied! Please use HTTPS (GitHub Pages).");
+        }
     }
 
-    function applySettings() {
-        updateAudioSettings({
-            limiter: document.getElementById('set-limiter').checked,
-            noiseSuppression: document.getElementById('set-noise').checked
-        });
+    function applyAudioSettings() {
+        if (!compressor || !filter) return;
+        const useLimiter = document.getElementById('set-limiter').checked;
+        const useNoise = document.getElementById('set-noise').checked;
+        
+        compressor.threshold.setValueAtTime(useLimiter ? -24 : -100, audioCtx.currentTime);
+        filter.frequency.setValueAtTime(useNoise ? 100 : 0, audioCtx.currentTime);
     }
 
     function toggleSettings() {
@@ -114,24 +140,11 @@
         panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
     }
 
-    function setupText(conn) {
-        connections.push(conn);
-        conn.on('data', data => {
-            addMsg(conn.peer.replace("RDK-LOBBY-", ""), data);
-            notifyUser();
-        });
-    }
-
-    function notifyUser() {
-        if(document.getElementById('set-sound').checked) document.getElementById('notif-sound').play();
-        const alert = document.getElementById('new-msg-alert');
-        alert.style.display = 'block';
-        setTimeout(() => alert.style.display = 'none', 3000);
-    }
-
     function connectToFriend() {
         const friend = document.getElementById('target-id').value.trim();
+        if(!friend) return;
         const fullId = "RDK-LOBBY-" + friend;
+        
         setupVoice(peer.call(fullId, processedStream));
         setupText(peer.connect(fullId));
     }
@@ -139,7 +152,19 @@
     function setupVoice(call) {
         const audio = document.createElement('audio');
         audio.autoplay = true;
-        call.on('stream', s => { audio.srcObject = s; document.getElementById('audio-container').appendChild(audio); });
+        call.on('stream', s => {
+            audio.srcObject = s;
+            document.getElementById('audio-container').appendChild(audio);
+        });
+    }
+
+    function setupText(conn) {
+        if(connections.some(c => c.peer === conn.peer)) return;
+        connections.push(conn);
+        conn.on('data', data => {
+            addMsg(conn.peer.replace("RDK-LOBBY-", ""), data);
+            notifyUser();
+        });
     }
 
     function sendMessage() {
@@ -154,6 +179,13 @@
         const box = document.getElementById('chat-box');
         box.innerHTML += `<div class="msg"><b>${user}:</b> ${text}</div>`;
         box.scrollTop = box.scrollHeight;
+    }
+
+    function notifyUser() {
+        if(document.getElementById('set-sound').checked) document.getElementById('notif-sound').play();
+        const alert = document.getElementById('new-msg-alert');
+        alert.style.display = 'block';
+        setTimeout(() => alert.style.display = 'none', 3000);
     }
 
     function toggleMute() {
