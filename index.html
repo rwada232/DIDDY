@@ -3,588 +3,564 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VoiceGist — P2P Voice Chat via GitHub</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<title>DirectCall — Serverless Voice Chat</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Cabinet+Grotesk:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
-  :root {
-    --bg: #0b0d10;
-    --surface: #131620;
-    --surface2: #1a1e2e;
-    --border: rgba(99,160,255,0.15);
-    --accent: #4f8fff;
-    --accent2: #7c5cfc;
-    --green: #22d3a5;
-    --red: #ff4f6a;
-    --amber: #ffb830;
-    --text: #e8eaf2;
-    --muted: #6b7280;
-    --mono: 'JetBrains Mono', monospace;
-    --sans: 'Syne', sans-serif;
-  }
+:root{
+  --bg:#f0ede8;
+  --surface:#faf8f5;
+  --ink:#1a1714;
+  --ink2:#5a5550;
+  --ink3:#9a938c;
+  --accent:#c84b2f;
+  --accent-light:#f2e8e5;
+  --green:#2a7a4b;
+  --green-light:#e3f0e9;
+  --border:#d8d3cc;
+  --border2:#c8c3bc;
+  --sans:'Cabinet Grotesk',sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+}
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 2rem 1rem 4rem;
-  }
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  min-height:100vh;
+  padding:2rem 1rem 5rem;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
 
-  .grid-bg {
-    position: fixed; inset: 0; z-index: 0;
-    background-image:
-      linear-gradient(rgba(79,143,255,0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(79,143,255,0.04) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-  }
+/* subtle dot grid */
+body::before{
+  content:'';
+  position:fixed;inset:0;z-index:0;
+  background-image:radial-gradient(circle,var(--border) 1px,transparent 1px);
+  background-size:24px 24px;
+  pointer-events:none;
+}
 
-  .wrap { position: relative; z-index: 1; width: 100%; max-width: 560px; }
+.wrap{position:relative;z-index:1;width:100%;max-width:520px;}
 
-  header { text-align: center; margin-bottom: 2.5rem; }
-  .logo {
-    font-size: 2.4rem; font-weight: 800; letter-spacing: -1px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  .tagline { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); margin-top: 4px; letter-spacing: 1px; }
+header{margin-bottom:2.5rem;}
+.logo{
+  font-size:3rem;font-weight:900;letter-spacing:-2px;
+  color:var(--ink);line-height:1;
+}
+.logo span{color:var(--accent);}
+.sub{
+  font-family:var(--mono);font-size:0.7rem;
+  color:var(--ink3);margin-top:6px;letter-spacing:0.5px;
+}
 
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 1.5rem;
-    margin-bottom: 1.25rem;
-  }
+/* step indicator */
+.steps{
+  display:flex;align-items:center;gap:0;
+  margin-bottom:2rem;
+}
+.step-node{
+  width:28px;height:28px;border-radius:50%;
+  border:2px solid var(--border2);
+  background:var(--surface);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:0.65rem;font-weight:600;
+  color:var(--ink3);flex-shrink:0;
+  transition:all 0.25s;
+}
+.step-node.active{border-color:var(--accent);background:var(--accent);color:#fff;}
+.step-node.done{border-color:var(--green);background:var(--green);color:#fff;}
+.step-line{flex:1;height:2px;background:var(--border);transition:background 0.25s;}
+.step-line.done{background:var(--green);}
 
-  .card-title {
-    font-family: var(--mono); font-size: 0.65rem; font-weight: 600;
-    letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
-    margin-bottom: 1rem;
-  }
+.card{
+  background:var(--surface);
+  border:1.5px solid var(--border);
+  border-radius:12px;
+  padding:1.5rem;
+  margin-bottom:1.25rem;
+  transition:border-color 0.2s;
+}
+.card.active-card{border-color:var(--accent);}
+.card.done-card{border-color:var(--green);opacity:0.7;}
 
-  label { font-size: 0.8rem; color: var(--muted); font-family: var(--mono); display: block; margin-bottom: 6px; }
+.card-head{
+  display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;
+}
+.card-num{
+  width:24px;height:24px;border-radius:50%;
+  background:var(--ink);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:0.65rem;font-weight:600;flex-shrink:0;
+}
+.card-title{font-weight:700;font-size:1rem;}
+.card-desc{font-size:0.8rem;color:var(--ink2);margin-bottom:1rem;line-height:1.6;}
 
-  input[type="text"], input[type="password"] {
-    width: 100%; background: var(--surface2);
-    border: 1px solid var(--border); border-radius: 8px;
-    padding: 0.65rem 0.9rem; color: var(--text);
-    font-family: var(--mono); font-size: 0.85rem;
-    outline: none; transition: border-color 0.2s;
-    margin-bottom: 1rem;
-  }
-  input:focus { border-color: var(--accent); }
+textarea{
+  width:100%;background:var(--bg);
+  border:1.5px solid var(--border);border-radius:8px;
+  padding:0.75rem;color:var(--ink);
+  font-family:var(--mono);font-size:0.72rem;
+  resize:vertical;outline:none;
+  transition:border-color 0.2s;line-height:1.5;
+}
+textarea:focus{border-color:var(--accent);}
+textarea.green:focus{border-color:var(--green);}
 
-  .row { display: flex; gap: 0.75rem; }
+.row{display:flex;gap:8px;margin-top:8px;}
 
-  button {
-    flex: 1; padding: 0.7rem 1rem;
-    border-radius: 8px; border: 1px solid var(--border);
-    font-family: var(--sans); font-size: 0.85rem; font-weight: 700;
-    cursor: pointer; transition: all 0.15s; letter-spacing: 0.3px;
-    background: var(--surface2); color: var(--text);
-  }
-  button:hover { border-color: var(--accent); color: var(--accent); }
-  button:active { transform: scale(0.98); }
-  button.primary {
-    background: var(--accent); border-color: var(--accent);
-    color: #fff;
-  }
-  button.primary:hover { background: #6a9fff; border-color: #6a9fff; color: #fff; }
-  button.danger {
-    background: var(--red); border-color: var(--red); color: #fff;
-  }
-  button.danger:hover { background: #ff6b82; color: #fff; }
-  button:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+button{
+  padding:0.6rem 1.1rem;border-radius:7px;
+  font-family:var(--sans);font-size:0.85rem;font-weight:700;
+  cursor:pointer;transition:all 0.15s;border:1.5px solid var(--border2);
+  background:var(--surface);color:var(--ink);
+}
+button:hover{border-color:var(--ink);background:var(--ink);color:#fff;}
+button:active{transform:scale(0.97);}
+button.accent{background:var(--accent);border-color:var(--accent);color:#fff;}
+button.accent:hover{background:#a83820;border-color:#a83820;}
+button.green-btn{background:var(--green);border-color:var(--green);color:#fff;}
+button.green-btn:hover{background:#1f5e38;}
+button:disabled{opacity:0.35;cursor:not-allowed;transform:none;}
+button.sm{padding:0.45rem 0.8rem;font-size:0.78rem;}
 
-  .status-bar {
-    display: flex; align-items: center; gap: 10px;
-    padding: 0.75rem 1rem;
-    background: var(--surface2); border-radius: 8px;
-    margin-bottom: 1rem;
-    font-family: var(--mono); font-size: 0.75rem;
-  }
-  .dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--muted); flex-shrink: 0;
-    transition: background 0.3s;
-  }
-  .dot.idle { background: var(--muted); }
-  .dot.connecting { background: var(--amber); animation: pulse 1s infinite; }
-  .dot.connected { background: var(--green); animation: pulse 1.5s infinite; }
-  .dot.error { background: var(--red); }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
-  }
+.copy-row{display:flex;gap:6px;margin-top:6px;}
+.copy-row textarea{flex:1;}
 
-  .visualizer-wrap {
-    display: flex; align-items: flex-end; justify-content: center;
-    gap: 3px; height: 48px; margin: 1rem 0;
-    opacity: 0; transition: opacity 0.4s;
-  }
-  .visualizer-wrap.active { opacity: 1; }
-  .bar {
-    width: 4px; border-radius: 2px;
-    background: linear-gradient(to top, var(--accent), var(--accent2));
-    height: 4px; transition: height 0.08s;
-  }
+.badge{
+  display:inline-block;padding:3px 8px;border-radius:4px;
+  font-family:var(--mono);font-size:0.65rem;font-weight:600;
+  letter-spacing:0.5px;
+}
+.badge-red{background:var(--accent-light);color:var(--accent);}
+.badge-green{background:var(--green-light);color:var(--green);}
 
-  .volume-section {
-    display: flex; align-items: center; gap: 10px; margin-top: 0.75rem;
-  }
-  .vol-label { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); flex-shrink: 0; }
-  input[type="range"] {
-    flex: 1; accent-color: var(--accent); cursor: pointer;
-    margin-bottom: 0;
-  }
+/* call screen */
+#call-screen{display:none;}
 
-  .log {
-    background: var(--surface2); border-radius: 8px;
-    padding: 0.75rem; height: 120px; overflow-y: auto;
-    font-family: var(--mono); font-size: 0.72rem;
-    line-height: 1.7; color: var(--muted);
-    border: 1px solid var(--border);
-  }
-  .log .entry { border-bottom: 1px solid rgba(255,255,255,0.04); padding: 2px 0; }
-  .log .entry span { color: var(--accent); margin-right: 6px; }
-  .log .entry.ok span { color: var(--green); }
-  .log .entry.err span { color: var(--red); }
-  .log .entry.warn span { color: var(--amber); }
+.call-wrap{
+  background:var(--ink);border-radius:16px;
+  padding:2rem;text-align:center;
+  border:1.5px solid #333;
+}
+.call-avatar{
+  width:72px;height:72px;border-radius:50%;
+  background:var(--accent);margin:0 auto 1rem;
+  display:flex;align-items:center;justify-content:center;
+  font-size:2rem;
+  box-shadow:0 0 0 8px rgba(200,75,47,0.15);
+  animation:ring 2s ease-in-out infinite;
+}
+@keyframes ring{
+  0%,100%{box-shadow:0 0 0 8px rgba(200,75,47,0.15);}
+  50%{box-shadow:0 0 0 16px rgba(200,75,47,0.05);}
+}
+.call-status{color:#fff;font-weight:700;font-size:1.2rem;margin-bottom:4px;}
+.call-dur{font-family:var(--mono);font-size:0.85rem;color:#888;margin-bottom:1.5rem;}
 
-  .help {
-    font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
-    line-height: 1.8; padding: 0.75rem; background: var(--surface2);
-    border-radius: 8px; border: 1px solid var(--border);
-  }
-  .help a { color: var(--accent); text-decoration: none; }
-  .help a:hover { text-decoration: underline; }
+.viz{
+  display:flex;align-items:flex-end;justify-content:center;
+  gap:3px;height:40px;margin:0 auto 1.5rem;width:160px;
+}
+.vbar{
+  width:5px;border-radius:3px;
+  background:var(--accent);height:4px;
+  transition:height 0.07s;
+}
 
-  .mute-btn {
-    width: 48px; height: 48px; border-radius: 50%; flex: none;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.2rem; padding: 0;
-  }
+.call-controls{display:flex;gap:10px;justify-content:center;}
+.ctrl-btn{
+  width:52px;height:52px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;padding:0;flex:none;
+  border:none;cursor:pointer;transition:all 0.15s;
+}
+.ctrl-btn:active{transform:scale(0.92);}
+.mute-ctrl{background:#2a2724;color:#fff;}
+.mute-ctrl:hover{background:#3a3734;}
+.mute-ctrl.muted{background:#c84b2f;color:#fff;}
+.end-ctrl{background:#c84b2f;color:#fff;}
+.end-ctrl:hover{background:#a83820;}
+.vol-ctrl{background:#2a2724;color:#fff;}
+.vol-ctrl:hover{background:#3a3734;}
 
-  .peer-icon {
-    width: 40px; height: 40px; border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent2), var(--accent));
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1rem; margin: 0 auto 0.5rem;
-    box-shadow: 0 0 20px rgba(79,143,255,0.25);
-  }
-  .connected-label {
-    text-align: center; font-size: 0.75rem; color: var(--green);
-    font-family: var(--mono);
-  }
+.vol-popup{
+  background:#2a2724;border-radius:8px;padding:0.75rem;
+  margin-top:0.75rem;display:none;
+}
+.vol-popup.show{display:block;}
+input[type=range]{width:100%;accent-color:var(--accent);}
 
-  .section-sep { height: 1px; background: var(--border); margin: 1rem 0; }
+/* log */
+.log{
+  font-family:var(--mono);font-size:0.68rem;
+  line-height:1.8;color:var(--ink3);
+  max-height:100px;overflow-y:auto;
+  border-top:1.5px solid var(--border);
+  padding-top:0.75rem;margin-top:0.75rem;
+}
+.le{} .le.ok{color:var(--green);} .le.err{color:var(--accent);} .le.warn{color:#b07c20;}
 
-  .gist-id-display {
-    font-family: var(--mono); font-size: 0.75rem;
-    background: var(--surface2); padding: 0.5rem 0.75rem;
-    border-radius: 6px; border: 1px solid var(--border);
-    color: var(--accent); word-break: break-all; margin-bottom: 0.75rem;
-    cursor: pointer; user-select: all;
-  }
-  .gist-id-display:hover { border-color: var(--accent); }
-
-  .tabs { display: flex; gap: 4px; margin-bottom: 1rem; }
-  .tab {
-    flex: 1; padding: 0.5rem; border-radius: 6px;
-    font-size: 0.75rem; font-family: var(--mono); font-weight: 600;
-    background: transparent; border: 1px solid var(--border); color: var(--muted);
-    cursor: pointer; transition: all 0.15s;
-  }
-  .tab.active { background: var(--surface2); border-color: var(--accent); color: var(--accent); }
-
-  .tab-content { display: none; }
-  .tab-content.active { display: block; }
+.hint{
+  font-family:var(--mono);font-size:0.68rem;
+  color:var(--ink3);background:var(--bg);
+  border:1px dashed var(--border2);border-radius:6px;
+  padding:0.6rem 0.8rem;line-height:1.7;margin-top:0.75rem;
+}
 </style>
 </head>
 <body>
-<div class="grid-bg"></div>
 <div class="wrap">
-  <header>
-    <div class="logo">VoiceGist</div>
-    <div class="tagline">// P2P VOICE CHAT · SIGNALED VIA GITHUB GIST</div>
-  </header>
 
-  <!-- Step 1: GitHub token -->
-  <div class="card" id="auth-card">
-    <div class="card-title">⬡ GitHub Auth</div>
-    <label>Personal Access Token (gist scope required)</label>
-    <input type="password" id="token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" />
-    <div class="help">
-      Create one at <a href="https://github.com/settings/tokens/new" target="_blank">github.com/settings/tokens</a> — only check the <strong>gist</strong> scope. Your token stays local (never sent anywhere except api.github.com).
-    </div>
+<header>
+  <div class="logo">Direct<span>Call</span></div>
+  <div class="sub">// NO SERVER · NO TOKEN · PURE WEBRTC</div>
+</header>
+
+<!-- step bar -->
+<div class="steps">
+  <div class="step-node active" id="s1">1</div>
+  <div class="step-line" id="l1"></div>
+  <div class="step-node" id="s2">2</div>
+  <div class="step-line" id="l2"></div>
+  <div class="step-node" id="s3">3</div>
+  <div class="step-line" id="l3"></div>
+  <div class="step-node" id="s4">🎙</div>
+</div>
+
+<!-- SETUP FLOW -->
+<div id="setup-flow">
+
+<!-- Step 1: Who are you -->
+<div class="card active-card" id="card1">
+  <div class="card-head">
+    <div class="card-num">1</div>
+    <div class="card-title">Who is starting the call?</div>
   </div>
-
-  <!-- Step 2: Create/Join -->
-  <div class="card">
-    <div class="card-title">⬡ Session</div>
-    <div class="tabs">
-      <button class="tab active" onclick="switchTab('host')">📡 Host (create room)</button>
-      <button class="tab" onclick="switchTab('join')">🔗 Join existing room</button>
-    </div>
-
-    <div id="tab-host" class="tab-content active">
-      <button class="primary" id="btn-create" onclick="createRoom()">Create Room →</button>
-      <div id="gist-display" style="display:none; margin-top:0.75rem;">
-        <label style="margin-bottom:4px;">Share this Gist ID with your peer:</label>
-        <div class="gist-id-display" id="gist-id-text" title="Click to copy" onclick="copyGistId()">—</div>
-        <button id="btn-accept" onclick="acceptAnswer()" disabled>⟳ Waiting for peer to join…</button>
-      </div>
-    </div>
-
-    <div id="tab-join" class="tab-content">
-      <label>Gist ID (given by host)</label>
-      <input type="text" id="gist-id-input" placeholder="e.g. 4a3b2c1d..." />
-      <button class="primary" onclick="joinRoom()">Join Room →</button>
-    </div>
-  </div>
-
-  <!-- Step 3: Call controls -->
-  <div class="card" id="call-card" style="display:none;">
-    <div class="card-title">⬡ Call</div>
-    <div class="peer-icon">🎙</div>
-    <div class="connected-label" id="call-label">Connected</div>
-
-    <div class="visualizer-wrap" id="viz">
-      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-      <div class="bar"></div><div class="bar"></div>
-    </div>
-
-    <div class="volume-section">
-      <span class="vol-label">VOL</span>
-      <input type="range" min="0" max="2" step="0.05" value="1" oninput="setVolume(this.value)" />
-    </div>
-
-    <div class="section-sep"></div>
-    <div class="row">
-      <button class="mute-btn" id="btn-mute" onclick="toggleMute()" title="Mute/Unmute">🎙</button>
-      <button class="danger" onclick="hangUp()">⏹ End Call</button>
-    </div>
-  </div>
-
-  <!-- Log -->
-  <div class="card">
-    <div class="card-title">⬡ Activity Log</div>
-    <div class="status-bar">
-      <div class="dot idle" id="status-dot"></div>
-      <span id="status-text">Idle — configure GitHub token to start</span>
-    </div>
-    <div class="log" id="log"></div>
+  <div class="card-desc">The <strong>Caller</strong> creates an offer. The <strong>Receiver</strong> waits for the caller to send them a code.</div>
+  <div class="row">
+    <button class="accent" style="flex:1" onclick="startAsCaller()">📡 I'm the Caller</button>
+    <button style="flex:1" onclick="startAsReceiver()">📥 I'm the Receiver</button>
   </div>
 </div>
 
-<audio id="remoteAudio" autoplay></audio>
+<!-- Step 2a: Caller — copy offer -->
+<div class="card" id="card2-caller" style="display:none">
+  <div class="card-head">
+    <div class="card-num">2</div>
+    <div class="card-title">Send this offer to your peer <span class="badge badge-red">CALLER</span></div>
+  </div>
+  <div class="card-desc">Copy the code below and send it to the other person via WhatsApp, Discord, email — anything.</div>
+  <textarea id="offer-out" rows="5" readonly placeholder="Generating offer…"></textarea>
+  <div class="row">
+    <button class="sm accent" onclick="copyText('offer-out')">📋 Copy offer</button>
+    <button class="sm" id="offer-copied-label" disabled style="flex:none;opacity:0.5">Not copied yet</button>
+  </div>
+  <div class="hint">⬇ Once your peer sends back an <strong>answer</strong>, paste it in Step 3.</div>
+</div>
+
+<!-- Step 2b: Receiver — paste offer -->
+<div class="card" id="card2-receiver" style="display:none">
+  <div class="card-head">
+    <div class="card-num">2</div>
+    <div class="card-title">Paste the caller's offer <span class="badge badge-green">RECEIVER</span></div>
+  </div>
+  <div class="card-desc">The caller should have sent you a block of text. Paste it below.</div>
+  <textarea id="offer-in" rows="5" placeholder="Paste offer here…" class="green"></textarea>
+  <div class="row">
+    <button class="green-btn" onclick="processOffer()">Generate my answer →</button>
+  </div>
+</div>
+
+<!-- Step 3a: Caller — paste answer -->
+<div class="card" id="card3-caller" style="display:none">
+  <div class="card-head">
+    <div class="card-num">3</div>
+    <div class="card-title">Paste the receiver's answer <span class="badge badge-red">CALLER</span></div>
+  </div>
+  <div class="card-desc">The receiver generated an answer code. Paste it here to connect.</div>
+  <textarea id="answer-in" rows="5" placeholder="Paste answer here…" class="green"></textarea>
+  <div class="row">
+    <button class="accent" onclick="applyAnswer()">Connect! →</button>
+  </div>
+</div>
+
+<!-- Step 3b: Receiver — copy answer -->
+<div class="card" id="card3-receiver" style="display:none">
+  <div class="card-head">
+    <div class="card-num">3</div>
+    <div class="card-title">Send this answer to the caller <span class="badge badge-green">RECEIVER</span></div>
+  </div>
+  <div class="card-desc">Copy the code below and send it back to the caller.</div>
+  <textarea id="answer-out" rows="5" readonly placeholder="Generating answer…"></textarea>
+  <div class="row">
+    <button class="sm green-btn" onclick="copyText('answer-out')">📋 Copy answer</button>
+    <button class="sm" disabled style="flex:none;opacity:0.5">Waiting for caller…</button>
+  </div>
+  <div class="hint">⬇ The caller will paste your answer — then the call connects automatically.</div>
+</div>
+
+<!-- log -->
+<div class="card" style="padding:1rem 1.25rem">
+  <div style="font-family:var(--mono);font-size:0.65rem;color:var(--ink3);letter-spacing:1px;text-transform:uppercase;margin-bottom:0.25rem">Activity</div>
+  <div class="log" id="log"><div class="le">Ready. Choose your role above.</div></div>
+</div>
+
+</div><!-- /setup-flow -->
+
+<!-- CALL SCREEN -->
+<div id="call-screen">
+  <div class="call-wrap">
+    <div class="call-avatar">🎙</div>
+    <div class="call-status">Connected</div>
+    <div class="call-dur" id="dur">00:00</div>
+    <div class="viz" id="viz">
+      <div class="vbar"></div><div class="vbar"></div><div class="vbar"></div>
+      <div class="vbar"></div><div class="vbar"></div><div class="vbar"></div>
+      <div class="vbar"></div><div class="vbar"></div><div class="vbar"></div>
+      <div class="vbar"></div><div class="vbar"></div><div class="vbar"></div>
+    </div>
+    <div class="call-controls">
+      <button class="ctrl-btn mute-ctrl" id="mute-btn" onclick="toggleMute()" title="Mute">🎙</button>
+      <button class="ctrl-btn end-ctrl" onclick="hangUp()" title="End call">📵</button>
+      <button class="ctrl-btn vol-ctrl" onclick="toggleVol()" title="Volume">🔊</button>
+    </div>
+    <div class="vol-popup" id="vol-popup">
+      <div style="font-family:var(--mono);font-size:0.65rem;color:#888;margin-bottom:6px">REMOTE VOLUME</div>
+      <input type="range" min="0" max="2" step="0.05" value="1" oninput="setVol(this.value)">
+    </div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+
+<audio id="remoteAudio" autoplay playsinline></audio>
 
 <script>
-const STUN = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun.cloudflare.com:3478' }
-];
+const STUN = [{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'}];
+let pc=null, localStream=null, muted=false, role=null;
+let vizAnim=null, durTimer=null, callStart=null;
 
-let pc = null, localStream = null, gistId = null, pollTimer = null;
-let muted = false, gainNode = null, audioCtx = null, analyser = null, vizAnim = null;
-let currentRole = null; // 'host' | 'guest'
-
-function getToken() { return document.getElementById('token').value.trim(); }
-
-function log(msg, type = '') {
-  const el = document.getElementById('log');
-  const entry = document.createElement('div');
-  entry.className = 'entry ' + type;
-  const t = new Date().toLocaleTimeString('en', { hour12: false });
-  entry.innerHTML = `<span>[${t}]</span>${msg}`;
-  el.appendChild(entry);
-  el.scrollTop = el.scrollHeight;
+function log(msg,type=''){
+  const el=document.getElementById('log');
+  const d=document.createElement('div');
+  d.className='le '+(type||'');
+  const t=new Date().toLocaleTimeString('en',{hour12:false});
+  d.textContent=`[${t}] ${msg}`;
+  el.appendChild(d);
+  el.scrollTop=el.scrollHeight;
 }
 
-function setStatus(text, state) {
-  document.getElementById('status-text').textContent = text;
-  const dot = document.getElementById('status-dot');
-  dot.className = 'dot ' + state;
-}
-
-function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', (i === 0) === (tab === 'host')));
-  document.getElementById('tab-host').classList.toggle('active', tab === 'host');
-  document.getElementById('tab-join').classList.toggle('active', tab === 'join');
-}
-
-async function githubRequest(method, path, body) {
-  const token = getToken();
-  if (!token) throw new Error('No GitHub token provided');
-  const res = await fetch('https://api.github.com' + path, {
-    method,
-    headers: {
-      Authorization: 'Bearer ' + token,
-      'Content-Type': 'application/json',
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28'
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `GitHub API ${res.status}`);
+function setStep(n){
+  for(let i=1;i<=4;i++){
+    const s=document.getElementById('s'+i);
+    if(!s)continue;
+    if(i<n){s.className='step-node done';s.textContent='✓';}
+    else if(i===n){s.className='step-node active';}
+    else{s.className='step-node';}
   }
-  return res.json();
+  for(let i=1;i<=3;i++){
+    const l=document.getElementById('l'+i);
+    if(l)l.className='step-line'+(i<n?' done':'');
+  }
 }
 
-async function createGist(data) {
-  const res = await githubRequest('POST', '/gists', {
-    description: 'VoiceGist signaling — do not edit manually',
-    public: false,
-    files: { 'signal.json': { content: JSON.stringify(data) } }
-  });
-  return res.id;
-}
+function show(...ids){ids.forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='';})}
+function hide(...ids){ids.forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';})}
 
-async function readGist(id) {
-  const res = await githubRequest('GET', `/gists/${id}`);
-  return JSON.parse(res.files['signal.json'].content);
-}
-
-async function updateGist(id, data) {
-  await githubRequest('PATCH', `/gists/${id}`, {
-    files: { 'signal.json': { content: JSON.stringify(data) } }
+function copyText(id){
+  const el=document.getElementById(id);
+  navigator.clipboard.writeText(el.value).then(()=>{
+    log('Copied to clipboard ✓','ok');
+    const btn=document.getElementById('offer-copied-label');
+    if(btn){btn.textContent='✓ Copied!';btn.style.opacity='1';btn.style.color='var(--green)';}
   });
 }
 
-function newPeerConnection() {
-  const p = new RTCPeerConnection({ iceServers: STUN });
-  p.onicecandidate = e => {
-    if (e.candidate) log('ICE candidate gathered');
-  };
-  p.oniceconnectionstatechange = () => {
-    log('ICE: ' + p.iceConnectionState);
-    if (p.iceConnectionState === 'connected' || p.iceConnectionState === 'completed') {
-      showCallCard();
-    }
-    if (['disconnected', 'failed', 'closed'].includes(p.iceConnectionState)) {
-      handleDisconnect();
-    }
-  };
-  p.ontrack = e => {
-    log('Remote audio track received', 'ok');
-    const audio = document.getElementById('remoteAudio');
-    audio.srcObject = e.streams[0];
-    setupRemoteVisualizer(e.streams[0]);
-  };
-  return p;
+async function getMic(){
+  localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+  localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+  log('Microphone ready','ok');
 }
 
-async function getMic() {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-  localStream = stream;
-  stream.getTracks().forEach(t => pc.addTrack(t, stream));
-  log('Microphone access granted', 'ok');
+function newPC(){
+  pc=new RTCPeerConnection({iceServers:STUN});
+  pc.oniceconnectionstatechange=()=>{
+    log('ICE: '+pc.iceConnectionState);
+    if(['connected','completed'].includes(pc.iceConnectionState)) showCall();
+    if(['disconnected','failed','closed'].includes(pc.iceConnectionState)) handleDrop();
+  };
+  pc.ontrack=e=>{
+    log('Remote audio received','ok');
+    document.getElementById('remoteAudio').srcObject=e.streams[0];
+    startViz(e.streams[0]);
+  };
 }
 
-async function gatherIce(pc) {
-  return new Promise(resolve => {
-    if (pc.iceGatheringState === 'complete') { resolve(); return; }
-    const check = () => {
-      if (pc.iceGatheringState === 'complete') {
-        pc.removeEventListener('icegatheringstatechange', check);
-        resolve();
-      }
-    };
-    pc.addEventListener('icegatheringstatechange', check);
-    setTimeout(resolve, 5000); // fallback
+async function waitIce(pc){
+  return new Promise(res=>{
+    if(pc.iceGatheringState==='complete'){res();return;}
+    const fn=()=>{if(pc.iceGatheringState==='complete'){pc.removeEventListener('icegatheringstatechange',fn);res();}};
+    pc.addEventListener('icegatheringstatechange',fn);
+    setTimeout(res,6000);
   });
 }
 
-async function createRoom() {
-  try {
-    if (!getToken()) { alert('Enter your GitHub token first.'); return; }
-    setStatus('Creating room…', 'connecting');
-    log('Creating WebRTC peer connection…');
-    pc = newPeerConnection();
+async function startAsCaller(){
+  role='caller';
+  try{
+    log('Requesting mic…');
+    newPC();
     await getMic();
-
-    const offer = await pc.createOffer();
+    log('Creating offer…');
+    const offer=await pc.createOffer();
     await pc.setLocalDescription(offer);
-    log('Offer created, gathering ICE…');
-    await gatherIce(pc);
-
-    setStatus('Uploading offer to GitHub Gist…', 'connecting');
-    gistId = await createGist({ offer: pc.localDescription, answer: null });
-    log('Gist created: ' + gistId, 'ok');
-
-    document.getElementById('gist-id-text').textContent = gistId;
-    document.getElementById('gist-display').style.display = 'block';
-    document.getElementById('btn-create').disabled = true;
-    document.getElementById('btn-accept').disabled = false;
-    document.getElementById('btn-accept').textContent = '⟳ Poll for answer…';
-
-    currentRole = 'host';
-    setStatus('Waiting for peer to join…', 'connecting');
-    startPolling();
-  } catch (e) {
-    log('Error: ' + e.message, 'err');
-    setStatus('Error — check log', 'error');
-  }
+    await waitIce(pc);
+    const payload=JSON.stringify(pc.localDescription);
+    document.getElementById('offer-out').value=payload;
+    hide('card1');
+    show('card2-caller');
+    document.getElementById('card2-caller').className='card active-card';
+    setStep(2);
+    log('Offer ready — copy and send it','ok');
+    // after a moment, show step 3
+    setTimeout(()=>{
+      show('card3-caller');
+      document.getElementById('card3-caller').className='card active-card';
+      document.getElementById('card2-caller').className='card done-card';
+      setStep(3);
+    },2000);
+  }catch(e){log('Error: '+e.message,'err');}
 }
 
-async function joinRoom() {
-  try {
-    if (!getToken()) { alert('Enter your GitHub token first.'); return; }
-    const id = document.getElementById('gist-id-input').value.trim();
-    if (!id) { alert('Enter a Gist ID.'); return; }
-    gistId = id;
+async function startAsReceiver(){
+  role='receiver';
+  hide('card1');
+  show('card2-receiver');
+  document.getElementById('card2-receiver').className='card active-card';
+  setStep(2);
+  log('Paste the caller\'s offer and click Generate');
+}
 
-    setStatus('Fetching offer from Gist…', 'connecting');
-    log('Reading Gist ' + id + '…');
-    const data = await readGist(id);
-    if (!data.offer) throw new Error('No offer found in Gist. Is the host ready?');
-
-    log('Offer found, creating answer…');
-    pc = newPeerConnection();
+async function processOffer(){
+  const raw=document.getElementById('offer-in').value.trim();
+  if(!raw){log('Paste the offer first','err');return;}
+  try{
+    const offer=JSON.parse(raw);
+    log('Processing offer…');
+    newPC();
     await getMic();
-
-    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-    const answer = await pc.createAnswer();
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer=await pc.createAnswer();
     await pc.setLocalDescription(answer);
-    log('Answer created, gathering ICE…');
-    await gatherIce(pc);
-
-    setStatus('Uploading answer to Gist…', 'connecting');
-    await updateGist(id, { offer: data.offer, answer: pc.localDescription });
-    log('Answer written to Gist', 'ok');
-    currentRole = 'guest';
-    setStatus('Answer sent — connecting…', 'connecting');
-  } catch (e) {
-    log('Error: ' + e.message, 'err');
-    setStatus('Error — check log', 'error');
-  }
+    await waitIce(pc);
+    const payload=JSON.stringify(pc.localDescription);
+    document.getElementById('answer-out').value=payload;
+    hide('card2-receiver');
+    show('card3-receiver');
+    document.getElementById('card3-receiver').className='card active-card';
+    setStep(3);
+    log('Answer ready — copy and send it back','ok');
+  }catch(e){log('Error: '+e.message,'err');}
 }
 
-function startPolling() {
-  pollTimer = setInterval(async () => {
-    try {
-      const data = await readGist(gistId);
-      if (data.answer && pc.remoteDescription === null) {
-        log('Answer received from peer!', 'ok');
-        clearInterval(pollTimer);
-        await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-        setStatus('Connecting…', 'connecting');
-        document.getElementById('btn-accept').textContent = '✓ Answer received!';
-        document.getElementById('btn-accept').disabled = true;
-      }
-    } catch (e) {
-      log('Poll error: ' + e.message, 'warn');
-    }
-  }, 3000);
-  log('Polling Gist every 3 seconds…');
+async function applyAnswer(){
+  const raw=document.getElementById('answer-in').value.trim();
+  if(!raw){log('Paste the answer first','err');return;}
+  try{
+    const answer=JSON.parse(raw);
+    await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    log('Answer applied — connecting…','ok');
+    setStep(4);
+  }catch(e){log('Error: '+e.message,'err');}
 }
 
-async function acceptAnswer() {
-  log('Manually checking for answer…');
-  try {
-    const data = await readGist(gistId);
-    if (data.answer && pc.remoteDescription === null) {
-      clearInterval(pollTimer);
-      await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-      log('Answer applied!', 'ok');
-    } else {
-      log('No answer yet. Still waiting…', 'warn');
-    }
-  } catch (e) {
-    log('Error: ' + e.message, 'err');
-  }
+function showCall(){
+  log('🎉 Call connected!','ok');
+  hide('setup-flow');
+  show('call-screen');
+  setStep(4);
+  const s4=document.getElementById('s4');
+  if(s4){s4.className='step-node done';}
+  callStart=Date.now();
+  durTimer=setInterval(()=>{
+    const s=Math.floor((Date.now()-callStart)/1000);
+    const m=String(Math.floor(s/60)).padStart(2,'0');
+    const sec=String(s%60).padStart(2,'0');
+    document.getElementById('dur').textContent=m+':'+sec;
+  },1000);
+  startLocalViz();
 }
 
-function showCallCard() {
-  setStatus('Connected!', 'connected');
-  log('🎉 Peer-to-peer audio connection established!', 'ok');
-  document.getElementById('call-card').style.display = 'block';
-  document.getElementById('call-card').scrollIntoView({ behavior: 'smooth' });
-  document.getElementById('viz').classList.add('active');
-  startLocalVisualizer();
-  clearInterval(pollTimer);
-}
-
-function handleDisconnect() {
-  setStatus('Disconnected', 'idle');
-  log('Peer disconnected', 'warn');
-  document.getElementById('call-card').style.display = 'none';
-  document.getElementById('viz').classList.remove('active');
+function handleDrop(){
+  log('Call ended or dropped','warn');
+  clearInterval(durTimer);
   cancelAnimationFrame(vizAnim);
 }
 
-function hangUp() {
-  if (pc) { pc.close(); pc = null; }
-  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
-  clearInterval(pollTimer);
-  cancelAnimationFrame(vizAnim);
-  setStatus('Call ended', 'idle');
+function hangUp(){
+  if(pc){pc.close();pc=null;}
+  if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
+  clearInterval(durTimer);cancelAnimationFrame(vizAnim);
   log('Call ended');
-  document.getElementById('call-card').style.display = 'none';
-  document.getElementById('viz').classList.remove('active');
-  document.getElementById('btn-create').disabled = false;
-  document.getElementById('gist-display').style.display = 'none';
-  document.getElementById('gist-id-input').value = '';
+  hide('call-screen');show('setup-flow');
+  // reset
+  ['card2-caller','card2-receiver','card3-caller','card3-receiver'].forEach(id=>hide(id));
+  show('card1');
+  document.getElementById('card1').className='card active-card';
+  document.getElementById('offer-out').value='';
+  document.getElementById('answer-out').value='';
+  document.getElementById('answer-in').value='';
+  document.getElementById('offer-in').value='';
+  setStep(1);
 }
 
-function toggleMute() {
-  muted = !muted;
-  if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = !muted);
-  document.getElementById('btn-mute').textContent = muted ? '🔇' : '🎙';
-  log(muted ? 'Microphone muted' : 'Microphone unmuted');
+function toggleMute(){
+  muted=!muted;
+  if(localStream)localStream.getAudioTracks().forEach(t=>t.enabled=!muted);
+  const btn=document.getElementById('mute-btn');
+  btn.textContent=muted?'🔇':'🎙';
+  btn.className='ctrl-btn mute-ctrl'+(muted?' muted':'');
+  log(muted?'Muted':'Unmuted');
 }
 
-function setVolume(val) {
-  const audio = document.getElementById('remoteAudio');
-  audio.volume = Math.min(1, parseFloat(val));
-  if (gainNode) gainNode.gain.value = parseFloat(val);
+function toggleVol(){
+  document.getElementById('vol-popup').classList.toggle('show');
 }
 
-function copyGistId() {
-  const id = document.getElementById('gist-id-text').textContent;
-  navigator.clipboard.writeText(id).then(() => log('Gist ID copied to clipboard', 'ok'));
+function setVol(v){
+  const a=document.getElementById('remoteAudio');
+  a.volume=Math.min(1,parseFloat(v));
 }
 
-function startLocalVisualizer() {
-  if (!localStream) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const src = audioCtx.createMediaStreamSource(localStream);
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 64;
-  src.connect(analyser);
-  animateBars(analyser);
+function startLocalViz(){
+  if(!localStream)return;
+  const ctx=new(window.AudioContext||window.webkitAudioContext)();
+  const src=ctx.createMediaStreamSource(localStream);
+  const an=ctx.createAnalyser();an.fftSize=32;
+  src.connect(an);
+  runViz(an);
 }
-
-function setupRemoteVisualizer(stream) {
-  // blend remote audio into visualizer too
+function startViz(stream){
+  const ctx=new(window.AudioContext||window.webkitAudioContext)();
+  const src=ctx.createMediaStreamSource(stream);
+  const an=ctx.createAnalyser();an.fftSize=32;
+  src.connect(an);
+  runViz(an);
 }
-
-function animateBars(analyser) {
-  const bars = document.querySelectorAll('.bar');
-  const data = new Uint8Array(analyser.frequencyBinCount);
-  function draw() {
-    analyser.getByteFrequencyData(data);
-    bars.forEach((bar, i) => {
-      const val = (data[i % data.length] || 0) / 255;
-      const h = 4 + val * 44;
-      bar.style.height = h + 'px';
+function runViz(an){
+  const bars=document.querySelectorAll('.vbar');
+  const data=new Uint8Array(an.frequencyBinCount);
+  function draw(){
+    an.getByteFrequencyData(data);
+    bars.forEach((b,i)=>{
+      const v=(data[i%data.length]||0)/255;
+      b.style.height=(4+v*36)+'px';
     });
-    vizAnim = requestAnimationFrame(draw);
+    vizAnim=requestAnimationFrame(draw);
   }
   draw();
 }
