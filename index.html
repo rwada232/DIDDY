@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RDK Voice & Text Lobby</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: #1e1e1e; width: 400px; padding: 20px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); border: 1px solid #333; }
+        h2 { margin-top: 0; color: #1a73e8; text-align: center; }
+        
+        /* Chat UI */
+        #chat-box { height: 200px; background: #121212; border-radius: 8px; overflow-y: auto; padding: 10px; margin-bottom: 10px; border: 1px solid #333; font-size: 0.9rem; }
+        .msg { margin-bottom: 8px; border-left: 3px solid #1a73e8; padding-left: 8px; }
+        .msg b { color: #4af2a1; }
+
+        input { width: 100%; padding: 12px; margin: 5px 0; border-radius: 6px; border: none; background: #2d2d2d; color: white; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #1a73e8; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 5px; }
+        button:hover { background: #1557b0; }
+        
+        .status { font-size: 0.8rem; color: #888; text-align: center; margin: 10px 0; }
+        .credit { font-size: 0.7rem; color: #444; text-align: center; margin-top: 15px; border-top: 1px solid #333; padding-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>RDK Lobby</h2>
+    <div class="status" id="status">Enter name to join lobby</div>
+
+    <div id="setup">
+        <input type="text" id="username" placeholder="Your Nickname">
+        <button onclick="initLobby()">Join Lobby</button>
+    </div>
+
+    <div id="main-ui" style="display:none;">
+        <div id="chat-box"></div>
+        <input type="text" id="message-input" placeholder="Type a message..." onkeypress="handleKey(event)">
+        
+        <p style="font-size: 0.8rem; color: #888;">To talk to someone, enter their name:</p>
+        <input type="text" id="target-id" placeholder="Friend's Name">
+        <button onclick="connectToFriend()" style="background: #34a853;">Connect Voice & Text</button>
+    </div>
+
+    <div class="credit">Built by <b>RDK</b></div>
+</div>
+
+<div id="audio-container"></div>
+
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script>
+    let peer, myStream;
+    let connections = []; // Track text connections
+
+    async function initLobby() {
+        const name = document.getElementById('username').value.trim();
+        if (!name) return alert("Pick a name!");
+
+        try {
+            myStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            peer = new Peer("RDK-LOBBY-" + name);
+
+            peer.on('open', () => {
+                document.getElementById('setup').style.display = 'none';
+                document.getElementById('main-ui').style.display = 'block';
+                document.getElementById('status').innerText = "Online as: " + name;
+                addMsg("System", "You joined the lobby.");
+            });
+
+            // Handle Incoming Calls (Voice)
+            peer.on('call', call => {
+                call.answer(myStream);
+                setupVoice(call);
+            });
+
+            // Handle Incoming Data (Text)
+            peer.on('connection', conn => {
+                setupText(conn);
+            });
+
+        } catch (e) {
+            alert("Mic Error. Use HTTPS!");
+        }
+    }
+
+    function connectToFriend() {
+        const friendName = document.getElementById('target-id').value.trim();
+        const fullId = "RDK-LOBBY-" + friendName;
+
+        // 1. Start Voice Call
+        const call = peer.call(fullId, myStream);
+        setupVoice(call);
+
+        // 2. Start Text Connection
+        const conn = peer.connect(fullId);
+        setupText(conn);
+    }
+
+    function setupVoice(call) {
+        const audio = document.createElement('audio');
+        audio.autoplay = true;
+        call.on('stream', stream => {
+            audio.srcObject = stream;
+            document.getElementById('audio-container').appendChild(audio);
+        });
+    }
+
+    function setupText(conn) {
+        connections.push(conn);
+        conn.on('data', data => {
+            addMsg(conn.peer.replace("RDK-LOBBY-", ""), data);
+        });
+        conn.on('open', () => addMsg("System", "Text link established!"));
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('message-input');
+        const msg = input.value;
+        if (!msg) return;
+
+        connections.forEach(conn => conn.send(msg));
+        addMsg("You", msg);
+        input.value = "";
+    }
+
+    function addMsg(user, text) {
+        const box = document.getElementById('chat-box');
+        box.innerHTML += `<div class="msg"><b>${user}:</b> ${text}</div>`;
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function handleKey(e) { if (e.key === 'Enter') sendMessage(); }
+</script>
+
+</body>
+</html>
