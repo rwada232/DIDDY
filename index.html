@@ -3,136 +3,149 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RDK Voice Chat Pro</title>
+    <title>RDK Voice Chat Ultimate</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .container { background: #1e293b; width: 400px; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border: 1px solid #334155; }
-        h2 { margin: 0 0 10px 0; color: #38bdf8; text-align: center; }
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #0ea5e9; --green: #10b981; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
+        .container { background: var(--card); width: 420px; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); position: relative; }
         
-        #chat-box { height: 180px; background: #0f172a; border-radius: 10px; overflow-y: auto; padding: 12px; margin-bottom: 15px; border: 1px solid #334155; font-size: 0.9rem; }
-        .msg { margin-bottom: 6px; }
-        .msg b { color: #38bdf8; }
-
-        .controls { display: flex; gap: 10px; margin-bottom: 10px; }
-        input { flex: 1; padding: 12px; border-radius: 8px; border: none; background: #334155; color: white; outline: none; }
+        /* Chat UI */
+        #chat-box { height: 150px; background: #0f172a; border-radius: 10px; overflow-y: auto; padding: 12px; margin-bottom: 10px; border: 1px solid #334155; }
+        .msg { margin-bottom: 5px; font-size: 0.9rem; animation: slideIn 0.2s ease-out; }
+        @keyframes slideIn { from { transform: translateX(-10px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         
-        button { padding: 12px 20px; background: #0284c7; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #0ea5e9; }
-        button.mute-btn { background: #64748b; width: 100%; margin-top: 10px; }
-        button.mute-active { background: #ef4444; }
+        /* Inputs & Buttons */
+        input { width: 100%; padding: 12px; border-radius: 8px; border: none; background: #334155; color: white; margin: 5px 0; box-sizing: border-box; }
+        button { padding: 10px 15px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { filter: brightness(1.2); }
+        
+        /* Settings Overlay */
+        #settings-panel { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--card); border-radius: 20px; padding: 25px; box-sizing: border-box; z-index: 10; }
+        .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 
-        .status { font-size: 0.8rem; color: #94a3b8; text-align: center; margin-bottom: 15px; }
-        .credit { font-size: 0.75rem; color: #475569; text-align: center; margin-top: 20px; border-top: 1px solid #334155; padding-top: 12px; }
+        .notify { position: absolute; top: 10px; right: 10px; background: var(--green); padding: 5px 10px; border-radius: 20px; font-size: 0.7rem; display: none; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .credit { font-size: 0.75rem; color: #475569; text-align: center; margin-top: 15px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>RDK Lobby</h2>
-    <div class="status" id="status">Connecting...</div>
+    <div id="new-msg-alert" class="notify">NEW MESSAGE</div>
+    <div style="display:flex; justify-content: space-between; align-items: center;">
+        <h2 style="color:var(--accent); margin:0;">RDK Lobby</h2>
+        <button onclick="toggleSettings()" style="background:transparent; font-size: 1.2rem;">⚙️</button>
+    </div>
 
     <div id="setup">
-        <input type="text" id="username" placeholder="Your Name">
-        <button onclick="initLobby()">Join</button>
+        <input type="text" id="username" placeholder="Your Nickname">
+        <button onclick="initLobby()" style="width:100%; margin-top:10px;">Join Chat</button>
     </div>
 
     <div id="main-ui" style="display:none;">
         <div id="chat-box"></div>
-        <div class="controls">
-            <input type="text" id="message-input" placeholder="Message..." onkeypress="if(event.key==='Enter') sendMessage()">
+        <div style="display:flex; gap:5px;">
+            <input type="text" id="message-input" placeholder="Type..." onkeypress="if(event.key==='Enter') sendMessage()">
             <button onclick="sendMessage()">Send</button>
         </div>
-        
-        <div style="border-top: 1px solid #334155; margin: 15px 0; padding-top: 15px;">
-            <input type="text" id="target-id" placeholder="Who to call?">
-            <button onclick="connectToFriend()" style="width:100%; margin-top:5px; background:#10b981;">Connect Voice</button>
-        </div>
+        <input type="text" id="target-id" placeholder="Friend's Name">
+        <button onclick="connectToFriend()" style="width:100%; background:var(--green);">Call Friend</button>
+        <button id="mute-btn" onclick="toggleMute()" style="width:100%; margin-top:10px; background:#64748b;">Mute Mic</button>
+    </div>
 
-        <button id="mute-btn" class="mute-btn" onclick="toggleMute()">Mute Microphone</button>
+    <!-- Settings Panel -->
+    <div id="settings-panel">
+        <h3>Settings</h3>
+        <div class="setting-item">
+            <span>Anti-Chopping (Limiter)</span>
+            <input type="checkbox" id="set-limiter" checked onchange="applySettings()" style="width:20px;">
+        </div>
+        <div class="setting-item">
+            <span>Noise Suppression</span>
+            <input type="checkbox" id="set-noise" checked onchange="applySettings()" style="width:20px;">
+        </div>
+        <div class="setting-item">
+            <span>Message Sound</span>
+            <input type="checkbox" id="set-sound" checked style="width:20px;">
+        </div>
+        <button onclick="toggleSettings()" style="width:100%; margin-top:20px;">Close</button>
     </div>
 
     <div class="credit">System by <b>RDK</b></div>
 </div>
 
 <div id="audio-container"></div>
+<audio id="notif-sound" src="https://actions.google.com/sounds/v1/communication/notification_high_intensity.ogg"></audio>
 
+<script src="audio-processor.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 <script>
-    let peer, myStream;
-    let isMuted = false;
+    let peer, rawStream, processedStream, isMuted = false;
+    let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     let connections = [];
 
     async function initLobby() {
         const name = document.getElementById('username').value.trim();
         if (!name) return;
-
         try {
-            // HIGH QUALITY AUDIO CONSTRAINTS
-            myStream = await navigator.mediaDevices.getUserMedia({ 
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: false, // Turned off so it doesn't compress your voice
-                    sampleRate: 48000
-                } 
-            });
-
+            rawStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            processedStream = createEnhancedStream(rawStream, audioCtx);
+            
             peer = new Peer("RDK-LOBBY-" + name);
-
             peer.on('open', () => {
                 document.getElementById('setup').style.display = 'none';
                 document.getElementById('main-ui').style.display = 'block';
-                document.getElementById('status').innerText = "Online: " + name;
             });
-
-            peer.on('call', call => {
-                call.answer(myStream);
-                setupVoice(call);
-            });
-
+            peer.on('call', call => { call.answer(processedStream); setupVoice(call); });
             peer.on('connection', conn => setupText(conn));
-
-        } catch (e) {
-            alert("Mic access denied. Check HTTPS settings.");
-        }
+        } catch (e) { alert("Mic Access Error"); }
     }
 
-    function toggleMute() {
-        isMuted = !isMuted;
-        myStream.getAudioTracks()[0].enabled = !isMuted;
-        
-        const btn = document.getElementById('mute-btn');
-        btn.innerText = isMuted ? "Unmute Microphone" : "Mute Microphone";
-        btn.classList.toggle('mute-active', isMuted);
+    function applySettings() {
+        updateAudioSettings({
+            limiter: document.getElementById('set-limiter').checked,
+            noiseSuppression: document.getElementById('set-noise').checked
+        });
+    }
+
+    function toggleSettings() {
+        const panel = document.getElementById('settings-panel');
+        panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function setupText(conn) {
+        connections.push(conn);
+        conn.on('data', data => {
+            addMsg(conn.peer.replace("RDK-LOBBY-", ""), data);
+            notifyUser();
+        });
+    }
+
+    function notifyUser() {
+        if(document.getElementById('set-sound').checked) document.getElementById('notif-sound').play();
+        const alert = document.getElementById('new-msg-alert');
+        alert.style.display = 'block';
+        setTimeout(() => alert.style.display = 'none', 3000);
     }
 
     function connectToFriend() {
-        const friendName = document.getElementById('target-id').value.trim();
-        const fullId = "RDK-LOBBY-" + friendName;
-
-        setupVoice(peer.call(fullId, myStream));
+        const friend = document.getElementById('target-id').value.trim();
+        const fullId = "RDK-LOBBY-" + friend;
+        setupVoice(peer.call(fullId, processedStream));
         setupText(peer.connect(fullId));
     }
 
     function setupVoice(call) {
         const audio = document.createElement('audio');
         audio.autoplay = true;
-        call.on('stream', stream => {
-            audio.srcObject = stream;
-            document.getElementById('audio-container').appendChild(audio);
-        });
-    }
-
-    function setupText(conn) {
-        if(connections.find(c => c.peer === conn.peer)) return;
-        connections.push(conn);
-        conn.on('data', data => addMsg(conn.peer.replace("RDK-LOBBY-", ""), data));
+        call.on('stream', s => { audio.srcObject = s; document.getElementById('audio-container').appendChild(audio); });
     }
 
     function sendMessage() {
         const input = document.getElementById('message-input');
-        if (!input.value) return;
-        connections.forEach(conn => conn.send(input.value));
+        if(!input.value) return;
+        connections.forEach(c => c.send(input.value));
         addMsg("You", input.value);
         input.value = "";
     }
@@ -141,6 +154,14 @@
         const box = document.getElementById('chat-box');
         box.innerHTML += `<div class="msg"><b>${user}:</b> ${text}</div>`;
         box.scrollTop = box.scrollHeight;
+    }
+
+    function toggleMute() {
+        isMuted = !isMuted;
+        rawStream.getAudioTracks()[0].enabled = !isMuted;
+        const btn = document.getElementById('mute-btn');
+        btn.innerText = isMuted ? "Unmute Mic" : "Mute Mic";
+        btn.style.background = isMuted ? "#ef4444" : "#64748b";
     }
 </script>
 </body>
