@@ -556,13 +556,13 @@ input[type=range]{
         <div class="step">Paste the entire contents of <code>Code.gs</code> into the editor</div>
         <div class="step">Click <strong>Deploy → New deployment → Web App</strong></div>
         <div class="step">Set <em>Execute as:</em> <code>Me</code> &nbsp;·&nbsp; <em>Access:</em> <code>Anyone</code></div>
-        <div class="step">Copy the deployment URL and paste it below, then click <em>Test Connection</em></div>
-        <div class="step">Share the same URL &amp; a room code with your peer — that's it</div>
+        <div class="step">Copy the Web App URL, paste it below, click <em>Test</em></div>
+        <div class="step">Share the same URL + a room code with your peer — done</div>
       </div>
     </div>
   </div>
 
-  <!-- ══ RELAY URL ══ -->
+  <!-- ══ RELAY CONFIG ══ -->
   <div class="card">
     <div class="card-header">
       <div class="card-header-icon">⬡</div>
@@ -572,10 +572,6 @@ input[type=range]{
       <div class="field">
         <div class="label">Apps Script Web App URL <span class="label-req">REQUIRED</span></div>
         <input type="text" id="script-url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false">
-      </div>
-      <div class="field">
-        <div class="label">Auth Key <span class="label-req">SHARED SECRET</span></div>
-        <input type="text" id="auth-key" placeholder="same key set in Code.gs AUTH_KEY" autocomplete="off" spellcheck="false">
       </div>
       <button class="btn btn-ghost btn-sm" onclick="pingServer()">▸ Test connection</button>
     </div>
@@ -733,34 +729,46 @@ function switchTab(t) {
 }
 
 /* ════════════════════════════════════════
-   APPS SCRIPT API
+   APPS SCRIPT RELAY  (JSONP — no CORS)
    ════════════════════════════════════════ */
-function getUrl()  { return document.getElementById('script-url').value.trim(); }
-function getKey()  { return document.getElementById('auth-key').value.trim(); }
+function getUrl() { return document.getElementById('script-url').value.trim(); }
 
-async function gas(params) {
-  const url = getUrl();
-  const key = getKey();
-  if (!url) throw new Error('No relay URL configured');
-  if (!key) throw new Error('No auth key set');
+function gas(params) {
+  return new Promise((resolve, reject) => {
+    const url = getUrl();
+    if (!url) { reject(new Error('No relay URL set')); return; }
 
-  const qs = new URLSearchParams({ ...params, key }).toString();
-  const res = await fetch(url + '?' + qs, { redirect: 'follow' });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error || 'Relay error');
-  return json;
+    const cb = '__gas_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    const timer = setTimeout(() => { cleanup(); reject(new Error('Timeout — relay did not respond in 10 s')); }, 10000);
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cb];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    window[cb] = json => {
+      cleanup();
+      if (!json.ok) reject(new Error(json.error || 'Relay error'));
+      else resolve(json);
+    };
+
+    const script = document.createElement('script');
+    script.src = url + '?' + new URLSearchParams({ ...params, callback: cb });
+    script.onerror = () => { cleanup(); reject(new Error('Could not reach relay — check URL')); };
+    document.head.appendChild(script);
+  });
 }
 
 async function pingServer() {
   try {
     setStatus('Pinging relay…', 'working');
-    log('Testing relay connection…');
+    log('Testing relay…');
     const r = await gas({ action: 'ping' });
     log('Relay online · ' + r.result.msg, 'ok');
     setStatus('Relay connected', 'live');
   } catch (e) {
-    log('Relay unreachable: ' + e.message, 'err');
+    log('Ping failed: ' + e.message, 'err');
     setStatus('Relay unreachable', 'dead');
   }
 }
@@ -774,26 +782,42 @@ async function readSignal(room, role) {
   return r.result.payload ? decodeURIComponent(r.result.payload) : null;
 }
 
+async function clearSignals(room) {
+  await gas({ action: 'clear', room }).catch(() => {});
+}
+
 /* ════════════════════════════════════════
    WEBRTC CORE
    ════════════════════════════════════════ */
+let callShown = false; // guard against showCall() firing multiple times
+
 function newPC() {
+  callShown = false;
   pc = new RTCPeerConnection({ iceServers: STUN });
 
   pc.oniceconnectionstatechange = () => {
-    log('ICE state → ' + pc.iceConnectionState);
-    if (['connected', 'completed'].includes(pc.iceConnectionState)) showCall();
+    log('ICE → ' + pc.iceConnectionState);
+    if (!callShown && ['connected', 'completed'].includes(pc.iceConnectionState)) {
+      callShown = true;
+      showCall();
+    }
     if (['disconnected', 'failed', 'closed'].includes(pc.iceConnectionState)) onDrop();
   };
 
   pc.ontrack = e => {
     log('Remote audio stream received', 'ok');
-    document.getElementById('remoteAudio').srcObject = e.streams[0];
+    const audio = document.getElementById('remoteAudio');
+    audio.srcObject = e.streams[0];
+    audio.play().catch(() => {});
     animateViz(e.streams[0]);
   };
 
   pc.onsignalingstatechange = () => {
     log('Signaling → ' + pc.signalingState);
+  };
+
+  pc.onicegatheringstatechange = () => {
+    log('ICE gathering → ' + pc.iceGatheringState);
   };
 }
 
@@ -804,8 +828,9 @@ async function getMic() {
 }
 
 async function waitIce() {
+  // If already complete, return immediately
+  if (pc.iceGatheringState === 'complete') return;
   return new Promise(res => {
-    if (pc.iceGatheringState === 'complete') { res(); return; }
     const fn = () => {
       if (pc.iceGatheringState === 'complete') {
         pc.removeEventListener('icegatheringstatechange', fn);
@@ -813,7 +838,8 @@ async function waitIce() {
       }
     };
     pc.addEventListener('icegatheringstatechange', fn);
-    setTimeout(res, 8000); // max wait 8s
+    // Safety timeout — some networks take a while
+    setTimeout(res, 10000);
   });
 }
 
@@ -853,11 +879,14 @@ async function startHost() {
 }
 
 function pollForAnswer(room) {
-  log('Polling relay for answer every 3 s…');
+  log('Polling for answer every 3 s…');
+  let answerSet = false;
   pollTimer = setInterval(async () => {
+    if (answerSet) return;
     try {
       const payload = await readSignal(room, 'answer');
-      if (payload && !pc.remoteDescription) {
+      if (payload) {
+        answerSet = true;
         clearInterval(pollTimer);
         log('Answer received from peer', 'ok');
         await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(payload)));
@@ -930,7 +959,7 @@ function showCall() {
   animateLocalViz();
 
   // Clean up relay signals
-  setTimeout(() => gas({ action: 'clear', room: currentRoom }).catch(() => {}), 5000);
+  setTimeout(() => clearSignals(currentRoom), 5000);
 }
 
 function onDrop() {
@@ -947,7 +976,7 @@ function hangUp() {
   clearInterval(durTimer);
   cancelAnimationFrame(vizAnim);
 
-  gas({ action: 'clear', room: currentRoom }).catch(() => {});
+  clearSignals(currentRoom);
   log('Call ended by local user');
   setStatus('Idle', 'idle');
 
