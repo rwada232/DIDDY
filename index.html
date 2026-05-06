@@ -682,6 +682,8 @@ const STUN = [
 let pc = null, localStream = null;
 let muted = false, role = null, currentRoom = null;
 let pollTimer = null, vizAnim = null, durTimer = null, callStart = null;
+let callShown = false;
+let answerSet = false;
 
 /* ════════════════════════════════════════
    UTILITIES
@@ -793,6 +795,7 @@ let callShown = false; // guard against showCall() firing multiple times
 
 function newPC() {
   callShown = false;
+  answerSet = false;
   pc = new RTCPeerConnection({ iceServers: STUN });
 
   pc.oniceconnectionstatechange = () => {
@@ -880,7 +883,7 @@ async function startHost() {
 
 function pollForAnswer(room) {
   log('Polling for answer every 3 s…');
-  let answerSet = false;
+  answerSet = false;
   pollTimer = setInterval(async () => {
     if (answerSet) return;
     try {
@@ -889,6 +892,10 @@ function pollForAnswer(room) {
         answerSet = true;
         clearInterval(pollTimer);
         log('Answer received from peer', 'ok');
+        if (pc.signalingState !== 'have-local-offer') {
+          log('Unexpected signaling state: ' + pc.signalingState + ' — skipping setRemoteDescription', 'warn');
+          return;
+        }
         await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(payload)));
         setStatus('Handshaking…', 'working');
       }
@@ -975,6 +982,8 @@ function hangUp() {
   clearInterval(pollTimer);
   clearInterval(durTimer);
   cancelAnimationFrame(vizAnim);
+  callShown = false;
+  answerSet = false;
 
   clearSignals(currentRoom);
   log('Call ended by local user');
