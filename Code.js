@@ -7,7 +7,10 @@
 var SHEET_NAME  = 'signals';
 var TTL_MS      = 15 * 60 * 1000;   // signals expire after 15 min
 var MAX_ROOMS   = 500;               // cap rows to avoid runaway sheets
-var VERSION     = '2.0.0';
+var VERSION     = '2.1.0';
+
+// !! SET THIS — must match the key entered in the frontend !!
+var AUTH_KEY    = 'CHANGE_ME';
 
 /* ════════════════════════════════════════════
    ENTRY POINTS
@@ -22,9 +25,13 @@ function doPost(e) {
 }
 
 function handleRequest(e) {
-  var p        = (e && e.parameter) ? e.parameter : {};
-  var action   = p.action   || '';
-  var callback = p.callback || ''; // JSONP support
+  var p      = (e && e.parameter) ? e.parameter : {};
+  var action = p.action || '';
+
+  // Auth check — reject anything without the correct key
+  if (p.key !== AUTH_KEY) {
+    return respond({ ok: false, error: 'Unauthorized' });
+  }
 
   try {
     var result;
@@ -36,9 +43,9 @@ function handleRequest(e) {
       case 'status': result = doStatus();                           break;
       default:       throw new Error('Unknown action: "' + action + '"');
     }
-    return respond({ ok: true, version: VERSION, result: result }, callback);
+    return respond({ ok: true, version: VERSION, result: result });
   } catch (err) {
-    return respond({ ok: false, version: VERSION, error: err.message }, callback);
+    return respond({ ok: false, version: VERSION, error: err.message });
   }
 }
 
@@ -47,7 +54,7 @@ function handleRequest(e) {
    ════════════════════════════════════════════ */
 
 function doPing() {
-  getSheet(); // throws if sheet is unreachable
+  getSheet();
   return { msg: 'pong', ts: Date.now() };
 }
 
@@ -66,12 +73,11 @@ function doWrite(room, role, payload) {
   role = sanitize(role);
 
   var sheet = getSheet();
-  pruneExpired(sheet);           // housekeeping before write
+  pruneExpired(sheet);
 
   var rows = sheet.getDataRange().getValues();
   var now  = Date.now();
 
-  // Overwrite existing row for this room + role
   for (var i = 1; i < rows.length; i++) {
     if (rows[i][0] === room && rows[i][1] === role) {
       sheet.getRange(i + 1, 3).setValue(payload);
@@ -80,7 +86,6 @@ function doWrite(room, role, payload) {
     }
   }
 
-  // Guard against runaway row count
   if (rows.length - 1 >= MAX_ROOMS) {
     throw new Error('Relay at capacity. Try again later.');
   }
@@ -103,9 +108,7 @@ function doRead(room, role) {
   for (var i = 1; i < rows.length; i++) {
     if (rows[i][0] === room && rows[i][1] === role) {
       var ts = Number(rows[i][3]);
-      if (now - ts > TTL_MS) {
-        return { payload: null, reason: 'expired' };
-      }
+      if (now - ts > TTL_MS) return { payload: null, reason: 'expired' };
       return { payload: rows[i][2], age: now - ts };
     }
   }
@@ -116,11 +119,10 @@ function doClear(room) {
   if (!room) throw new Error('Missing: room');
   room = sanitize(room);
 
-  var sheet = getSheet();
-  var rows  = sheet.getDataRange().getValues();
+  var sheet   = getSheet();
+  var rows    = sheet.getDataRange().getValues();
   var deleted = 0;
 
-  // Delete bottom-up so row indices stay valid
   for (var i = rows.length - 1; i >= 1; i--) {
     if (rows[i][0] === room) {
       sheet.deleteRow(i + 1);
@@ -136,47 +138,32 @@ function doClear(room) {
 
 function getSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss) {
-    // Fallback: create a new spreadsheet (only works if script is standalone)
-    ss = SpreadsheetApp.create('VoidTalk Signals');
-  }
+  if (!ss) ss = SpreadsheetApp.create('VoidTalk Signals');
 
   var sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
     sheet.appendRow(['room', 'role', 'payload', 'timestamp']);
     sheet.setFrozenRows(1);
-    // Widen payload column for large SDP blobs
     sheet.setColumnWidth(3, 400);
   }
   return sheet;
 }
 
-// Remove rows older than TTL (called before every write)
 function pruneExpired(sheet) {
   var rows = sheet.getDataRange().getValues();
   var now  = Date.now();
   for (var i = rows.length - 1; i >= 1; i--) {
-    if (now - Number(rows[i][3]) > TTL_MS) {
-      sheet.deleteRow(i + 1);
-    }
+    if (now - Number(rows[i][3]) > TTL_MS) sheet.deleteRow(i + 1);
   }
 }
 
-// Strip anything that isn't alphanumeric, dash, or underscore
 function sanitize(str) {
   return String(str).replace(/[^a-zA-Z0-9\-_]/g, '').substring(0, 64);
 }
 
-function respond(data, callback) {
-  var json = JSON.stringify(data);
-  if (callback) {
-    // JSONP: wrap in callback(...) so browser <script> tags can read it cross-origin
-    return ContentService
-      .createTextOutput(callback + '(' + json + ')')
-      .setMimeType(ContentService.MimeType.JAVASCRIPT);
-  }
+function respond(data) {
   return ContentService
-    .createTextOutput(json)
+    .createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
 }
