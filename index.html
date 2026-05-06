@@ -679,28 +679,32 @@ const STUN = [
   { urls: 'stun:stun.cloudflare.com:3478' },
 ];
 
-let pc = null, localStream = null;
-let muted = false, role = null, currentRoom = null;
-let pollTimer = null, vizAnim = null, durTimer = null, callStart = null;
-let callShown = false;
-let answerSet = false;
+let pc          = null;
+let localStream = null;
+let muted       = false;
+let role        = null;
+let currentRoom = null;
+let pollTimer   = null;
+let vizAnim     = null;
+let durTimer    = null;
+let callStart   = null;
+let callShown   = false;
+let answerSet   = false;
 
 /* ════════════════════════════════════════
    UTILITIES
    ════════════════════════════════════════ */
 function log(msg, type = '') {
-  const el = document.getElementById('log');
+  const el  = document.getElementById('log');
   const row = document.createElement('div');
   row.className = 'log-entry ' + type;
-  const ts = new Date().toLocaleTimeString('en', { hour12: false });
+  const ts  = new Date().toLocaleTimeString('en', { hour12: false });
   row.innerHTML = `<span class="log-ts">${ts}</span>${msg}`;
   el.appendChild(row);
   el.scrollTop = el.scrollHeight;
 }
 
-function clearLog() {
-  document.getElementById('log').innerHTML = '';
-}
+function clearLog() { document.getElementById('log').innerHTML = ''; }
 
 function setStatus(txt, state = 'idle') {
   document.getElementById('status-text').textContent = txt;
@@ -712,8 +716,7 @@ function hide(id) { document.getElementById(id).style.display = 'none'; }
 function getUrl() { return document.getElementById('script-url').value.trim(); }
 
 function toggleSetup() {
-  const el = document.getElementById('setup-accordion');
-  el.classList.toggle('setup-open');
+  document.getElementById('setup-accordion').classList.toggle('setup-open');
 }
 
 function genRoom() {
@@ -724,29 +727,27 @@ function genRoom() {
 }
 
 function switchTab(t) {
-  document.getElementById('tab-host').className = 'tab' + (t === 'host' ? ' on' : '');
-  document.getElementById('tab-join').className = 'tab' + (t === 'join' ? ' on' : '');
+  document.getElementById('tab-host').className  = 'tab' + (t === 'host' ? ' on' : '');
+  document.getElementById('tab-join').className  = 'tab' + (t === 'join' ? ' on' : '');
   document.getElementById('pane-host').style.display = t === 'host' ? '' : 'none';
   document.getElementById('pane-join').style.display = t === 'join' ? '' : 'none';
 }
 
 /* ════════════════════════════════════════
-   APPS SCRIPT RELAY  (JSONP — no CORS)
+   APPS SCRIPT RELAY  (JSONP — bypasses CORS)
    ════════════════════════════════════════ */
-function getUrl() { return document.getElementById('script-url').value.trim(); }
-
 function gas(params) {
   return new Promise((resolve, reject) => {
     const url = getUrl();
     if (!url) { reject(new Error('No relay URL set')); return; }
 
-    const cb = '__gas_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    const cb    = '__gas_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
     const timer = setTimeout(() => { cleanup(); reject(new Error('Timeout — relay did not respond in 10 s')); }, 10000);
 
     function cleanup() {
       clearTimeout(timer);
       delete window[cb];
-      if (script.parentNode) script.parentNode.removeChild(script);
+      if (tag.parentNode) tag.parentNode.removeChild(tag);
     }
 
     window[cb] = json => {
@@ -755,10 +756,10 @@ function gas(params) {
       else resolve(json);
     };
 
-    const script = document.createElement('script');
-    script.src = url + '?' + new URLSearchParams({ ...params, callback: cb });
-    script.onerror = () => { cleanup(); reject(new Error('Could not reach relay — check URL')); };
-    document.head.appendChild(script);
+    const tag = document.createElement('script');
+    tag.src   = url + '?' + new URLSearchParams({ ...params, callback: cb });
+    tag.onerror = () => { cleanup(); reject(new Error('Could not reach relay — check URL')); };
+    document.head.appendChild(tag);
   });
 }
 
@@ -789,13 +790,12 @@ async function clearSignals(room) {
 }
 
 /* ════════════════════════════════════════
-   WEBRTC CORE
+   WEBRTC
    ════════════════════════════════════════ */
-let callShown = false; // guard against showCall() firing multiple times
-
 function newPC() {
   callShown = false;
   answerSet = false;
+
   pc = new RTCPeerConnection({ iceServers: STUN });
 
   pc.oniceconnectionstatechange = () => {
@@ -807,41 +807,29 @@ function newPC() {
     if (['disconnected', 'failed', 'closed'].includes(pc.iceConnectionState)) onDrop();
   };
 
+  pc.onicegatheringstatechange = () => log('Gathering → ' + pc.iceGatheringState);
+  pc.onsignalingstatechange    = () => log('Signaling → ' + pc.signalingState);
+
   pc.ontrack = e => {
-    log('Remote audio stream received', 'ok');
+    log('Remote audio received', 'ok');
     const audio = document.getElementById('remoteAudio');
     audio.srcObject = e.streams[0];
     audio.play().catch(() => {});
     animateViz(e.streams[0]);
-  };
-
-  pc.onsignalingstatechange = () => {
-    log('Signaling → ' + pc.signalingState);
-  };
-
-  pc.onicegatheringstatechange = () => {
-    log('ICE gathering → ' + pc.iceGatheringState);
   };
 }
 
 async function getMic() {
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
   localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-  log('Microphone access granted', 'ok');
+  log('Microphone ready', 'ok');
 }
 
 async function waitIce() {
-  // If already complete, return immediately
   if (pc.iceGatheringState === 'complete') return;
   return new Promise(res => {
-    const fn = () => {
-      if (pc.iceGatheringState === 'complete') {
-        pc.removeEventListener('icegatheringstatechange', fn);
-        res();
-      }
-    };
+    const fn = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', fn); res(); } };
     pc.addEventListener('icegatheringstatechange', fn);
-    // Safety timeout — some networks take a while
     setTimeout(res, 10000);
   });
 }
@@ -851,57 +839,45 @@ async function waitIce() {
    ════════════════════════════════════════ */
 async function startHost() {
   const room = (document.getElementById('room-host').value || '').trim().toUpperCase();
-  if (!room) { alert('Enter a room code first'); return; }
+  if (!room)   { alert('Enter a room code first'); return; }
   if (!getUrl()) { alert('Enter your relay URL first'); return; }
 
-  currentRoom = room;
-  role = 'host';
-
+  currentRoom = room; role = 'host';
   try {
     setStatus('Initializing room ' + room + '…', 'working');
     log('Creating room: ' + room, 'info');
     newPC();
     await getMic();
-
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     log('Gathering ICE candidates…');
     await waitIce();
-
-    log('Publishing offer to relay…');
+    log('Publishing offer…');
     await writeSignal(room, 'offer', JSON.stringify(pc.localDescription));
-    log('Offer published — waiting for peer…', 'ok');
+    log('Offer posted — waiting for peer…', 'ok');
     setStatus('Room ' + room + ' live · share code with peer', 'working');
     document.getElementById('call-room-id').textContent = room;
-
     pollForAnswer(room);
   } catch (e) {
     log('Error: ' + e.message, 'err');
-    setStatus('Failed — check log', 'dead');
+    setStatus('Failed', 'dead');
   }
 }
 
 function pollForAnswer(room) {
   log('Polling for answer every 3 s…');
-  answerSet = false;
   pollTimer = setInterval(async () => {
     if (answerSet) return;
     try {
       const payload = await readSignal(room, 'answer');
-      if (payload) {
+      if (payload && pc.signalingState === 'have-local-offer') {
         answerSet = true;
         clearInterval(pollTimer);
-        log('Answer received from peer', 'ok');
-        if (pc.signalingState !== 'have-local-offer') {
-          log('Unexpected signaling state: ' + pc.signalingState + ' — skipping setRemoteDescription', 'warn');
-          return;
-        }
+        log('Answer received!', 'ok');
         await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(payload)));
         setStatus('Handshaking…', 'working');
       }
-    } catch (e) {
-      log('Poll error: ' + e.message, 'warn');
-    }
+    } catch (e) { log('Poll error: ' + e.message, 'warn'); }
   }, 3000);
 }
 
@@ -910,38 +886,31 @@ function pollForAnswer(room) {
    ════════════════════════════════════════ */
 async function startJoin() {
   const room = (document.getElementById('room-join').value || '').trim().toUpperCase();
-  if (!room) { alert('Enter the room code'); return; }
+  if (!room)   { alert('Enter the room code'); return; }
   if (!getUrl()) { alert('Enter your relay URL first'); return; }
 
-  currentRoom = room;
-  role = 'guest';
-
+  currentRoom = room; role = 'guest';
   try {
     setStatus('Fetching offer for room ' + room + '…', 'working');
-    log('Looking up offer for room: ' + room, 'info');
-
+    log('Looking up offer: ' + room, 'info');
     const payload = await readSignal(room, 'offer');
     if (!payload) throw new Error('No offer found — is the host ready?');
-
     log('Offer found, creating answer…');
     newPC();
     await getMic();
-
     await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(payload)));
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-
     log('Gathering ICE candidates…');
     await waitIce();
-
-    log('Publishing answer to relay…');
+    log('Publishing answer…');
     await writeSignal(room, 'answer', JSON.stringify(pc.localDescription));
-    log('Answer published — handshaking…', 'ok');
+    log('Answer posted — connecting…', 'ok');
     setStatus('Answer sent · connecting…', 'working');
     document.getElementById('call-room-id').textContent = room;
   } catch (e) {
     log('Error: ' + e.message, 'err');
-    setStatus('Failed — check log', 'dead');
+    setStatus('Failed', 'dead');
   }
 }
 
@@ -949,23 +918,16 @@ async function startJoin() {
    CALL MANAGEMENT
    ════════════════════════════════════════ */
 function showCall() {
-  log('🔒 Encrypted call established', 'ok');
+  log('🔒 Encrypted call live!', 'ok');
   setStatus('Connected · Room ' + currentRoom, 'live');
-
-  hide('setup-flow');
-  show('call-screen');
-
+  hide('setup-flow'); show('call-screen');
   callStart = Date.now();
-  durTimer = setInterval(() => {
-    const s = Math.floor((Date.now() - callStart) / 1000);
-    const mm = String(Math.floor(s / 60)).padStart(2, '0');
-    const ss = String(s % 60).padStart(2, '0');
-    document.getElementById('dur').textContent = mm + ':' + ss;
+  durTimer  = setInterval(() => {
+    const s  = Math.floor((Date.now() - callStart) / 1000);
+    document.getElementById('dur').textContent =
+      String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
   }, 1000);
-
   animateLocalViz();
-
-  // Clean up relay signals
   setTimeout(() => clearSignals(currentRoom), 5000);
 }
 
@@ -977,20 +939,17 @@ function onDrop() {
 }
 
 function hangUp() {
-  if (pc) { pc.close(); pc = null; }
+  if (pc)          { pc.close(); pc = null; }
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
   clearInterval(pollTimer);
   clearInterval(durTimer);
   cancelAnimationFrame(vizAnim);
   callShown = false;
   answerSet = false;
-
   clearSignals(currentRoom);
-  log('Call ended by local user');
+  log('Call ended');
   setStatus('Idle', 'idle');
-
-  hide('call-screen');
-  show('setup-flow');
+  hide('call-screen'); show('setup-flow');
   document.getElementById('room-host').value = '';
   document.getElementById('room-join').value = '';
   document.getElementById('dur').textContent = '00:00';
@@ -1001,18 +960,12 @@ function toggleMute() {
   if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = !muted);
   const btn = document.getElementById('mute-btn');
   btn.textContent = muted ? '🔇' : '🎙';
-  btn.className = 'ctrl ' + (muted ? 'ctrl-muted' : 'ctrl-default');
-  log(muted ? 'Microphone muted' : 'Microphone active');
+  btn.className   = 'ctrl ' + (muted ? 'ctrl-muted' : 'ctrl-default');
+  log(muted ? 'Muted' : 'Unmuted');
 }
 
-function toggleVol() {
-  const strip = document.getElementById('vol-strip');
-  strip.classList.toggle('open');
-}
-
-function setVol(v) {
-  document.getElementById('remoteAudio').volume = Math.min(1, parseFloat(v));
-}
+function toggleVol() { document.getElementById('vol-strip').classList.toggle('open'); }
+function setVol(v)   { document.getElementById('remoteAudio').volume = Math.min(1, parseFloat(v)); }
 
 /* ════════════════════════════════════════
    VISUALIZER
@@ -1022,21 +975,17 @@ function animateLocalViz() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const src = ctx.createMediaStreamSource(localStream);
-    const an = ctx.createAnalyser();
-    an.fftSize = 32;
-    src.connect(an);
-    drawViz(an);
-  } catch (e) { /* AudioContext not always available */ }
+    const an  = ctx.createAnalyser(); an.fftSize = 32;
+    src.connect(an); drawViz(an);
+  } catch (e) {}
 }
 
 function animateViz(stream) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const src = ctx.createMediaStreamSource(stream);
-    const an = ctx.createAnalyser();
-    an.fftSize = 32;
-    src.connect(an);
-    drawViz(an);
+    const an  = ctx.createAnalyser(); an.fftSize = 32;
+    src.connect(an); drawViz(an);
   } catch (e) {}
 }
 
@@ -1045,10 +994,7 @@ function drawViz(an) {
   const data = new Uint8Array(an.frequencyBinCount);
   function frame() {
     an.getByteFrequencyData(data);
-    bars.forEach((b, i) => {
-      const val = data[i % data.length] || 0;
-      b.style.height = (3 + (val / 255) * 29) + 'px';
-    });
+    bars.forEach((b, i) => { b.style.height = (3 + (data[i % data.length] || 0) / 255 * 29) + 'px'; });
     vizAnim = requestAnimationFrame(frame);
   }
   frame();
