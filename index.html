@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EPSTEIN-TALK</title>
+<title>VOIDTALK</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;700;800&family=Space+Grotesk:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -573,6 +573,10 @@ input[type=range]{
         <div class="label">Apps Script Web App URL <span class="label-req">REQUIRED</span></div>
         <input type="text" id="script-url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false">
       </div>
+      <div class="field">
+        <div class="label">Auth Key <span class="label-req">SHARED SECRET</span></div>
+        <input type="text" id="auth-key" placeholder="same key set in Code.gs AUTH_KEY" autocomplete="off" spellcheck="false">
+      </div>
       <button class="btn btn-ghost btn-sm" onclick="pingServer()">▸ Test connection</button>
     </div>
   </div>
@@ -729,39 +733,23 @@ function switchTab(t) {
 }
 
 /* ════════════════════════════════════════
-   APPS SCRIPT API  (JSONP — avoids CORS)
+   APPS SCRIPT API
    ════════════════════════════════════════ */
-function gas(params) {
-  return new Promise((resolve, reject) => {
-    const url = getUrl();
-    if (!url) { reject(new Error('No relay URL configured')); return; }
+function getUrl()  { return document.getElementById('script-url').value.trim(); }
+function getKey()  { return document.getElementById('auth-key').value.trim(); }
 
-    // Unique callback name
-    const cbName = '__gasCallback_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+async function gas(params) {
+  const url = getUrl();
+  const key = getKey();
+  if (!url) throw new Error('No relay URL configured');
+  if (!key) throw new Error('No auth key set');
 
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(new Error('Request timed out (10 s)'));
-    }, 10000);
-
-    function cleanup() {
-      clearTimeout(timer);
-      delete window[cbName];
-      if (script.parentNode) script.parentNode.removeChild(script);
-    }
-
-    window[cbName] = function(json) {
-      cleanup();
-      if (!json.ok) reject(new Error(json.error || 'Relay error'));
-      else resolve(json);
-    };
-
-    const qs = new URLSearchParams({ ...params, callback: cbName }).toString();
-    const script = document.createElement('script');
-    script.src = url + '?' + qs;
-    script.onerror = () => { cleanup(); reject(new Error('Failed to reach relay — check URL')); };
-    document.head.appendChild(script);
-  });
+  const qs = new URLSearchParams({ ...params, key }).toString();
+  const res = await fetch(url + '?' + qs, { redirect: 'follow' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Relay error');
+  return json;
 }
 
 async function pingServer() {
