@@ -1,169 +1,995 @@
-// ╔══════════════════════════════════════════════════════════╗
-// ║  V O I D T A L K  —  Signaling Relay                    ║
-// ║  Google Apps Script Backend                              ║
-// ║  Deploy → Web App · Execute as: Me · Access: Anyone     ║
-// ╚══════════════════════════════════════════════════════════╝
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOIDTALK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;700;800&family=Space+Grotesk:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Reset ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#070709;
+  --bg2:#0d0d12;
+  --panel:#10101a;
+  --panel2:#15151f;
+  --border:rgba(255,255,255,0.06);
+  --border2:rgba(255,255,255,0.12);
+  --border3:rgba(255,255,255,0.22);
+  --text:#e2e2ec;
+  --dim:#4a4a60;
+  --muted:#6b6b88;
+  --cyan:#00e5ff;
+  --cyan2:#00b8cc;
+  --cyan-glow:rgba(0,229,255,0.15);
+  --green:#00ff9d;
+  --green-dim:#00cc7a;
+  --red:#ff3b5c;
+  --yellow:#ffd24d;
+  --mono:'Share Tech Mono',monospace;
+  --display:'Syne',sans-serif;
+  --body:'Space Grotesk',sans-serif;
+  --r:6px;
+  --r2:12px;
+}
 
-var SHEET_NAME  = 'signals';
-var TTL_MS      = 15 * 60 * 1000;   // signals expire after 15 min
-var MAX_ROOMS   = 500;               // cap rows to avoid runaway sheets
-var VERSION     = '2.1.0';
+html{scroll-behavior:smooth;}
 
-// !! SET THIS — must match the key entered in the frontend !!
-var AUTH_KEY    = 'CHANGE_ME';
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--body);
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:0 1rem 6rem;
+  position:relative;
+  overflow-x:hidden;
+}
+
+/* ── Background grid ── */
+body::before{
+  content:'';
+  position:fixed;inset:0;z-index:0;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,229,255,0.025) 1px,transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;
+}
+
+/* ── Vignette ── */
+body::after{
+  content:'';
+  position:fixed;inset:0;z-index:0;
+  background:radial-gradient(ellipse at center,transparent 40%,rgba(7,7,9,0.85) 100%);
+  pointer-events:none;
+}
+
+.wrap{
+  width:100%;max-width:520px;
+  position:relative;z-index:1;
+  padding-top:3rem;
+}
 
 /* ════════════════════════════════════════════
-   ENTRY POINTS
+   HEADER
    ════════════════════════════════════════════ */
-
-function doGet(e) {
-  return handleRequest(e);
+header{
+  margin-bottom:2.5rem;
+  position:relative;
 }
 
-function doPost(e) {
-  return handleRequest(e);
+.logo-row{
+  display:flex;align-items:flex-end;gap:16px;
+  margin-bottom:8px;
 }
 
-function handleRequest(e) {
-  var p      = (e && e.parameter) ? e.parameter : {};
-  var action = p.action || '';
+.logo{
+  font-family:var(--display);
+  font-size:3.8rem;
+  font-weight:800;
+  letter-spacing:-1px;
+  color:var(--text);
+  line-height:1;
+  position:relative;
+}
 
-  // Auth check — reject anything without the correct key
-  if (p.key !== AUTH_KEY) {
-    return respond({ ok: false, error: 'Unauthorized' });
-  }
+.logo span{color:var(--cyan);}
 
+.logo-ver{
+  font-family:var(--mono);
+  font-size:0.6rem;
+  color:var(--dim);
+  letter-spacing:3px;
+  margin-bottom:10px;
+  border:1px solid var(--border2);
+  padding:3px 8px;
+  border-radius:3px;
+}
+
+.tagline{
+  font-family:var(--mono);
+  font-size:0.62rem;
+  color:var(--dim);
+  letter-spacing:2px;
+  text-transform:uppercase;
+}
+
+.tagline em{color:var(--cyan);font-style:normal;}
+
+/* ════════════════════════════════════════════
+   PANELS / CARDS
+   ════════════════════════════════════════════ */
+.card{
+  background:var(--panel);
+  border:1px solid var(--border2);
+  border-radius:var(--r2);
+  margin-bottom:1rem;
+  overflow:hidden;
+}
+
+.card-header{
+  display:flex;align-items:center;gap:10px;
+  padding:0.75rem 1.25rem;
+  border-bottom:1px solid var(--border);
+  background:var(--panel2);
+}
+
+.card-header-icon{
+  width:24px;height:24px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:0.75rem;
+  color:var(--cyan);
+  border:1px solid var(--border2);
+  border-radius:4px;
+}
+
+.card-title{
+  font-family:var(--mono);
+  font-size:0.62rem;
+  letter-spacing:2.5px;
+  text-transform:uppercase;
+  color:var(--muted);
+  flex:1;
+}
+
+.card-body{padding:1.25rem;}
+
+/* ════════════════════════════════════════════
+   SETUP ACCORDION
+   ════════════════════════════════════════════ */
+.setup-card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:var(--r2);
+  margin-bottom:1rem;
+  overflow:hidden;
+}
+
+.setup-toggle{
+  display:flex;align-items:center;gap:12px;
+  padding:0.85rem 1.25rem;
+  cursor:pointer;
+  border:none;background:transparent;
+  width:100%;text-align:left;
+  color:var(--dim);
+  transition:color 0.2s;
+}
+.setup-toggle:hover{color:var(--muted);}
+
+.setup-toggle-icon{
+  font-family:var(--mono);font-size:0.55rem;
+  color:var(--dim);transition:transform 0.2s;
+}
+.setup-open .setup-toggle-icon{transform:rotate(90deg);}
+
+.setup-toggle-label{
+  font-family:var(--mono);font-size:0.6rem;letter-spacing:2px;
+}
+
+.setup-body{
+  display:none;
+  padding:0 1.25rem 1.25rem;
+  border-top:1px solid var(--border);
+}
+.setup-open .setup-body{display:block;}
+
+.setup-steps{
+  padding-top:1rem;
+  counter-reset:step;
+}
+
+.step{
+  display:flex;gap:12px;
+  margin-bottom:0.85rem;
+  font-size:0.8rem;
+  color:var(--muted);
+  line-height:1.6;
+}
+
+.step::before{
+  counter-increment:step;
+  content:counter(step);
+  font-family:var(--mono);font-size:0.65rem;
+  color:var(--cyan);
+  min-width:20px;
+  margin-top:2px;
+}
+
+.step a{color:var(--cyan);text-decoration:none;}
+.step a:hover{text-decoration:underline;}
+.step code{
+  font-family:var(--mono);font-size:0.68rem;
+  background:var(--panel2);
+  border:1px solid var(--border2);
+  padding:1px 6px;border-radius:3px;
+  color:var(--text);
+}
+
+/* ════════════════════════════════════════════
+   INPUTS
+   ════════════════════════════════════════════ */
+.field{margin-bottom:0.9rem;}
+.field:last-child{margin-bottom:0;}
+
+.label{
+  font-family:var(--mono);
+  font-size:0.58rem;letter-spacing:2.5px;
+  text-transform:uppercase;
+  color:var(--dim);
+  margin-bottom:7px;
+  display:flex;align-items:center;gap:8px;
+}
+.label-req{color:var(--cyan);font-size:0.5rem;}
+
+input[type=text]{
+  width:100%;
+  background:var(--bg2);
+  border:1px solid var(--border2);
+  border-radius:var(--r);
+  padding:0.7rem 0.9rem;
+  color:var(--text);
+  font-family:var(--mono);font-size:0.78rem;
+  outline:none;
+  transition:border-color 0.2s,box-shadow 0.2s;
+  letter-spacing:0.5px;
+}
+input[type=text]::placeholder{color:var(--dim);}
+input[type=text]:focus{
+  border-color:var(--cyan);
+  box-shadow:0 0 0 3px var(--cyan-glow);
+}
+
+.row{display:flex;gap:8px;align-items:flex-end;}
+.row input{flex:1;}
+
+/* ════════════════════════════════════════════
+   TABS
+   ════════════════════════════════════════════ */
+.tabs{
+  display:flex;gap:2px;
+  background:var(--bg2);
+  border-radius:var(--r);
+  padding:3px;
+  margin-bottom:1.25rem;
+  border:1px solid var(--border);
+}
+
+.tab{
+  flex:1;
+  padding:0.55rem 0.5rem;
+  border-radius:4px;
+  font-family:var(--mono);font-size:0.65rem;
+  letter-spacing:1.5px;text-transform:uppercase;
+  background:transparent;border:none;
+  color:var(--dim);cursor:pointer;
+  transition:all 0.15s;
+}
+.tab:hover{color:var(--muted);}
+.tab.on{
+  background:var(--panel2);
+  color:var(--cyan);
+  border:1px solid var(--border2);
+  box-shadow:0 0 12px rgba(0,229,255,0.08);
+}
+
+/* ════════════════════════════════════════════
+   BUTTONS
+   ════════════════════════════════════════════ */
+.btn{
+  width:100%;padding:0.75rem;
+  border-radius:var(--r);
+  font-family:var(--mono);font-size:0.72rem;
+  letter-spacing:2px;text-transform:uppercase;
+  cursor:pointer;
+  transition:all 0.15s;
+  border:1px solid transparent;
+  margin-top:0.85rem;
+}
+.btn:active:not(:disabled){transform:scale(0.98);}
+.btn:disabled{opacity:0.25;cursor:not-allowed;transform:none!important;}
+
+.btn-primary{
+  background:var(--cyan);color:#000;
+  border-color:var(--cyan);
+  font-weight:700;
+}
+.btn-primary:hover:not(:disabled){
+  background:var(--cyan2);
+  box-shadow:0 0 20px rgba(0,229,255,0.3);
+}
+
+.btn-ghost{
+  background:transparent;color:var(--muted);
+  border-color:var(--border2);
+}
+.btn-ghost:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan);}
+
+.btn-danger{
+  background:var(--red);color:#fff;
+  border-color:var(--red);
+}
+.btn-danger:hover:not(:disabled){background:#ff5573;}
+
+.btn-sm{
+  width:auto;padding:0.55rem 1rem;
+  font-size:0.62rem;margin-top:0;
+}
+
+.btn-gen{
+  background:var(--panel2);
+  border:1px solid var(--border2);
+  color:var(--muted);
+  padding:0.7rem 0.85rem;
+  border-radius:var(--r);
+  font-family:var(--mono);font-size:0.7rem;
+  cursor:pointer;
+  transition:all 0.15s;
+  white-space:nowrap;
+  flex-shrink:0;
+  letter-spacing:1px;
+}
+.btn-gen:hover{border-color:var(--cyan);color:var(--cyan);}
+
+/* ════════════════════════════════════════════
+   STATUS BAR
+   ════════════════════════════════════════════ */
+.status{
+  display:flex;align-items:center;gap:10px;
+  padding:0.65rem 1rem;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  font-family:var(--mono);font-size:0.65rem;
+  color:var(--muted);
+  margin-bottom:1rem;
+  transition:border-color 0.3s;
+}
+
+.pulse{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--dim);flex-shrink:0;
+  transition:background 0.3s;
+}
+.pulse.idle{background:var(--dim);}
+.pulse.working{background:var(--yellow);animation:blink 0.8s infinite;}
+.pulse.live{background:var(--green);animation:breathe 2s ease-in-out infinite;}
+.pulse.dead{background:var(--red);}
+
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.2;}}
+@keyframes breathe{0%,100%{opacity:0.6;transform:scale(1);}50%{opacity:1;transform:scale(1.3);}}
+
+/* ════════════════════════════════════════════
+   CALL SCREEN
+   ════════════════════════════════════════════ */
+#call-screen{display:none;}
+
+.call-card{
+  background:var(--panel);
+  border:1px solid var(--border2);
+  border-radius:var(--r2);
+  overflow:hidden;
+  margin-bottom:1rem;
+}
+
+.call-top{
+  padding:2rem 1.5rem 1.5rem;
+  text-align:center;
+  background:linear-gradient(180deg,rgba(0,229,255,0.04) 0%,transparent 100%);
+  border-bottom:1px solid var(--border);
+}
+
+.call-room-tag{
+  font-family:var(--mono);font-size:0.6rem;letter-spacing:3px;
+  color:var(--dim);text-transform:uppercase;
+  margin-bottom:1.5rem;
+}
+.call-room-tag span{color:var(--cyan);}
+
+.avatar-ring{
+  width:90px;height:90px;border-radius:50%;
+  margin:0 auto 1rem;
+  background:var(--bg2);
+  border:2px solid var(--green);
+  display:flex;align-items:center;justify-content:center;
+  font-size:2rem;
+  position:relative;
+  animation:ring-breathe 3s ease-in-out infinite;
+}
+@keyframes ring-breathe{
+  0%,100%{box-shadow:0 0 0 0 rgba(0,255,157,0.2);}
+  50%{box-shadow:0 0 0 12px rgba(0,255,157,0);}
+}
+
+.call-status-label{
+  font-family:var(--mono);font-size:0.65rem;letter-spacing:3px;
+  color:var(--green);text-transform:uppercase;
+  margin-bottom:4px;
+}
+
+.call-duration{
+  font-family:var(--mono);font-size:0.78rem;
+  color:var(--dim);
+}
+
+/* Waveform visualizer */
+.viz{
+  display:flex;align-items:center;justify-content:center;
+  gap:3px;height:32px;margin:1.25rem auto 0;
+  width:160px;
+}
+.vbar{
+  width:4px;border-radius:2px;
+  background:var(--green);
+  height:3px;
+  transition:height 0.06s;
+  opacity:0.7;
+}
+
+/* Call controls */
+.call-controls{
+  display:flex;align-items:center;justify-content:center;
+  gap:12px;padding:1.25rem 1.5rem;
+}
+
+.ctrl{
+  width:52px;height:52px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;cursor:pointer;border:none;
+  transition:all 0.15s;flex-shrink:0;
+}
+.ctrl:active{transform:scale(0.88);}
+
+.ctrl-default{
+  background:var(--panel2);
+  border:1px solid var(--border2);
+  color:var(--text);
+}
+.ctrl-default:hover{border-color:var(--cyan);color:var(--cyan);}
+
+.ctrl-muted{
+  background:var(--red)!important;
+  border-color:var(--red)!important;
+  color:#fff!important;
+}
+
+.ctrl-end{
+  background:var(--red);color:#fff;
+  width:60px;height:60px;font-size:1.25rem;
+}
+.ctrl-end:hover{background:#ff5573;box-shadow:0 0 20px rgba(255,59,92,0.4);}
+
+.vol-strip{
+  display:none;
+  padding:0.75rem 1.5rem;
+  border-top:1px solid var(--border);
+  gap:12px;align-items:center;
+}
+.vol-strip.open{display:flex;}
+.vol-lbl{font-family:var(--mono);font-size:0.6rem;color:var(--dim);}
+input[type=range]{
+  flex:1;accent-color:var(--green);cursor:pointer;
+}
+
+/* ════════════════════════════════════════════
+   LOG
+   ════════════════════════════════════════════ */
+.log-card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:var(--r2);
+  overflow:hidden;
+  margin-bottom:1rem;
+}
+
+.log-inner{
+  font-family:var(--mono);font-size:0.64rem;
+  line-height:2;padding:0.85rem 1.25rem;
+  max-height:100px;overflow-y:auto;
+  scrollbar-width:thin;
+  scrollbar-color:var(--border2) transparent;
+}
+
+.log-entry{color:var(--dim);}
+.log-entry.ok{color:var(--green);}
+.log-entry.err{color:var(--red);}
+.log-entry.warn{color:var(--yellow);}
+.log-entry.info{color:var(--cyan);}
+
+.log-ts{color:var(--border3);margin-right:8px;}
+
+/* ════════════════════════════════════════════
+   RESPONSIVE TWEAKS
+   ════════════════════════════════════════════ */
+@media(max-width:440px){
+  .logo{font-size:2.8rem;}
+  .wrap{padding-top:1.5rem;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ══ HEADER ══ -->
+  <header>
+    <div class="logo-row">
+      <div class="logo">VOID<span>TALK</span></div>
+      <div class="logo-ver">v2.0</div>
+    </div>
+    <div class="tagline">
+      <em>WebRTC</em> · <em>E2E</em> · Cloudflare Workers · No third parties
+    </div>
+  </header>
+
+  <!-- ══ SETUP INSTRUCTIONS ══ -->
+  <div class="setup-card" id="setup-accordion">
+    <button class="setup-toggle" onclick="toggleSetup()">
+      <span class="setup-toggle-icon">▶</span>
+      <span class="setup-toggle-label">HOW TO DEPLOY THE BACKEND</span>
+    </button>
+    <div class="setup-body">
+      <div class="setup-steps">
+        <div class="step">Push <code>worker.js</code> and <code>wrangler.toml</code> to a new GitHub repo</div>
+        <div class="step">Go to <a href="https://dash.cloudflare.com" target="_blank">dash.cloudflare.com</a> → Workers & Pages → KV → Create namespace → name it <code>SIGNALS</code> → copy the ID into <code>wrangler.toml</code></div>
+        <div class="step">Go to Workers & Pages → Create → Connect to Git → pick your repo → deploy</div>
+        <div class="step">Cloudflare gives you a URL like <code>https://voidtalk-relay.workers.dev</code></div>
+        <div class="step">Paste that URL below — share it with your peer, done</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ RELAY CONFIG ══ -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-icon">⬡</div>
+      <div class="card-title">Cloudflare Worker URL</div>
+    </div>
+    <div class="card-body">
+      <div class="field">
+        <div class="label">Relay URL <span class="label-req">REQUIRED</span></div>
+        <input type="text" id="script-url" placeholder="https://voidtalk-relay.workers.dev" autocomplete="off" spellcheck="false">
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="pingServer()">▸ Test connection</button>
+    </div>
+  </div>
+
+  <!-- ══ SETUP FLOW ══ -->
+  <div id="setup-flow">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-icon">◈</div>
+        <div class="card-title">Session</div>
+      </div>
+      <div class="card-body">
+        <div class="tabs">
+          <button class="tab on" id="tab-host" onclick="switchTab('host')">⬡ Start Room</button>
+          <button class="tab" id="tab-join" onclick="switchTab('join')">⬢ Join Room</button>
+        </div>
+
+        <div id="pane-host">
+          <div class="field">
+            <div class="label">Room Code <span class="label-req">SHARE WITH PEER</span></div>
+            <div class="row">
+              <input type="text" id="room-host" placeholder="e.g. GHOST42" autocomplete="off" spellcheck="false">
+              <button class="btn-gen" onclick="genRoom()" title="Random room">⚄</button>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="startHost()">Initialize Room →</button>
+        </div>
+
+        <div id="pane-join" style="display:none">
+          <div class="field">
+            <div class="label">Room Code <span class="label-req">FROM HOST</span></div>
+            <input type="text" id="room-join" placeholder="e.g. GHOST42" autocomplete="off" spellcheck="false">
+          </div>
+          <button class="btn btn-primary" onclick="startJoin()">Connect to Room →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ STATUS ══ -->
+  <div class="status">
+    <div class="pulse idle" id="pulse"></div>
+    <span id="status-text">Paste your relay URL above to begin</span>
+  </div>
+
+  <!-- ══ CALL SCREEN ══ -->
+  <div id="call-screen">
+    <div class="call-card">
+      <div class="call-top">
+        <div class="call-room-tag">ROOM <span id="call-room-id">—</span></div>
+        <div class="avatar-ring">🔒</div>
+        <div class="call-status-label">Encrypted · Live</div>
+        <div class="call-duration" id="dur">00:00</div>
+        <div class="viz" id="viz">
+          <div class="vbar"></div><div class="vbar"></div>
+          <div class="vbar"></div><div class="vbar"></div>
+          <div class="vbar"></div><div class="vbar"></div>
+          <div class="vbar"></div><div class="vbar"></div>
+          <div class="vbar"></div><div class="vbar"></div>
+          <div class="vbar"></div><div class="vbar"></div>
+          <div class="vbar"></div><div class="vbar"></div>
+        </div>
+      </div>
+
+      <div class="call-controls">
+        <button class="ctrl ctrl-default" id="mute-btn" onclick="toggleMute()" title="Mute / Unmute">🎙</button>
+        <button class="ctrl ctrl-end" onclick="hangUp()" title="End call">📵</button>
+        <button class="ctrl ctrl-default" id="vol-btn" onclick="toggleVol()" title="Volume">🔊</button>
+      </div>
+
+      <div class="vol-strip" id="vol-strip">
+        <span class="vol-lbl">VOL</span>
+        <input type="range" min="0" max="2" step="0.05" value="1" oninput="setVol(this.value)">
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ LOG ══ -->
+  <div class="log-card">
+    <div class="card-header" style="background:transparent;">
+      <div class="card-header-icon">≡</div>
+      <div class="card-title">Activity Log</div>
+      <button class="btn btn-ghost btn-sm" onclick="clearLog()" style="margin-top:0;padding:0.3rem 0.6rem;font-size:0.55rem;">CLR</button>
+    </div>
+    <div class="log-inner" id="log">
+      <div class="log-entry">
+        <span class="log-ts">—</span>VoidTalk ready. Configure your relay URL above.
+      </div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<audio id="remoteAudio" autoplay playsinline></audio>
+
+<script>
+/* ════════════════════════════════════════
+   STATE
+   ════════════════════════════════════════ */
+const STUN = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:global.stun.twilio.com:3478' },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+];
+
+let pc          = null;
+let localStream = null;
+let muted       = false;
+let role        = null;
+let currentRoom = null;
+let pollTimer   = null;
+let vizAnim     = null;
+let durTimer    = null;
+let callStart   = null;
+let callShown   = false;
+let answerSet   = false;
+
+/* ════════════════════════════════════════
+   UTILITIES
+   ════════════════════════════════════════ */
+function log(msg, type = '') {
+  const el  = document.getElementById('log');
+  const row = document.createElement('div');
+  row.className = 'log-entry ' + type;
+  const ts  = new Date().toLocaleTimeString('en', { hour12: false });
+  row.innerHTML = `<span class="log-ts">${ts}</span>${msg}`;
+  el.appendChild(row);
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearLog() { document.getElementById('log').innerHTML = ''; }
+
+function setStatus(txt, state = 'idle') {
+  document.getElementById('status-text').textContent = txt;
+  document.getElementById('pulse').className = 'pulse ' + state;
+}
+
+function show(id) { document.getElementById(id).style.display = ''; }
+function hide(id) { document.getElementById(id).style.display = 'none'; }
+function getUrl() { return document.getElementById('script-url').value.trim(); }
+
+function toggleSetup() {
+  document.getElementById('setup-accordion').classList.toggle('setup-open');
+}
+
+function genRoom() {
+  const words = ['GHOST','VAULT','CIPHER','SHADOW','ECHO','RAVEN','NEXUS','ETHER','ABYSS','PRISM','DELTA','FORGE','PULSE','ZENITH'];
+  const id = words[Math.floor(Math.random() * words.length)] + Math.floor(Math.random() * 90 + 10);
+  document.getElementById('room-host').value = id;
+  log('Room code generated: ' + id, 'info');
+}
+
+function switchTab(t) {
+  document.getElementById('tab-host').className  = 'tab' + (t === 'host' ? ' on' : '');
+  document.getElementById('tab-join').className  = 'tab' + (t === 'join' ? ' on' : '');
+  document.getElementById('pane-host').style.display = t === 'host' ? '' : 'none';
+  document.getElementById('pane-join').style.display = t === 'join' ? '' : 'none';
+}
+
+/* ════════════════════════════════════════
+   NODE / RAILWAY RELAY
+   ════════════════════════════════════════ */
+function getUrl() { return document.getElementById('script-url').value.trim().replace(/\/$/, ''); }
+
+async function relay(method, path, body = null) {
+  const url = getUrl();
+  if (!url) throw new Error('No relay URL set');
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res  = await fetch(url + path, opts);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Relay error');
+  return json;
+}
+
+async function pingServer() {
   try {
-    var result;
-    switch (action) {
-      case 'ping':   result = doPing();                              break;
-      case 'write':  result = doWrite(p.room, p.role, p.payload);   break;
-      case 'read':   result = doRead(p.room, p.role);               break;
-      case 'clear':  result = doClear(p.room);                      break;
-      case 'status': result = doStatus();                           break;
-      default:       throw new Error('Unknown action: "' + action + '"');
+    setStatus('Pinging relay…', 'working');
+    log('Testing relay…');
+    const r = await relay('GET', '/ping');
+    log('Relay online · ' + r.result.msg, 'ok');
+    setStatus('Relay connected', 'live');
+  } catch (e) {
+    log('Ping failed: ' + e.message, 'err');
+    setStatus('Relay unreachable', 'dead');
+  }
+}
+
+async function writeSignal(room, role, payload) {
+  await relay('POST', '/write', { room, role, payload });
+}
+
+async function readSignal(room, role) {
+  const r = await relay('GET', `/read?room=${encodeURIComponent(room)}&role=${encodeURIComponent(role)}`);
+  return r.result.payload || null;
+}
+
+async function clearSignals(room) {
+  await relay('DELETE', `/clear?room=${encodeURIComponent(room)}`).catch(() => {});
+}
+
+/* ════════════════════════════════════════
+   WEBRTC
+   ════════════════════════════════════════ */
+function newPC() {
+  callShown = false;
+  answerSet = false;
+
+  pc = new RTCPeerConnection({ iceServers: STUN });
+
+  pc.oniceconnectionstatechange = () => {
+    log('ICE → ' + pc.iceConnectionState);
+    if (!callShown && ['connected', 'completed'].includes(pc.iceConnectionState)) {
+      callShown = true;
+      showCall();
     }
-    return respond({ ok: true, version: VERSION, result: result });
-  } catch (err) {
-    return respond({ ok: false, version: VERSION, error: err.message });
+    if (['disconnected', 'failed', 'closed'].includes(pc.iceConnectionState)) onDrop();
+  };
+
+  pc.onicegatheringstatechange = () => log('Gathering → ' + pc.iceGatheringState);
+  pc.onsignalingstatechange    = () => log('Signaling → ' + pc.signalingState);
+
+  pc.ontrack = e => {
+    log('Remote audio received', 'ok');
+    const audio = document.getElementById('remoteAudio');
+    audio.srcObject = e.streams[0];
+    audio.play().catch(() => {});
+    animateViz(e.streams[0]);
+  };
+}
+
+async function getMic() {
+  localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  log('Microphone ready', 'ok');
+}
+
+async function waitIce() {
+  if (pc.iceGatheringState === 'complete') return;
+  return new Promise(res => {
+    const fn = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', fn); res(); } };
+    pc.addEventListener('icegatheringstatechange', fn);
+    setTimeout(res, 10000);
+  });
+}
+
+/* ════════════════════════════════════════
+   HOST FLOW
+   ════════════════════════════════════════ */
+async function startHost() {
+  const room = (document.getElementById('room-host').value || '').trim().toUpperCase();
+  if (!room)   { alert('Enter a room code first'); return; }
+  if (!getUrl()) { alert('Enter your relay URL first'); return; }
+
+  currentRoom = room; role = 'host';
+  try {
+    setStatus('Initializing room ' + room + '…', 'working');
+    log('Creating room: ' + room, 'info');
+    newPC();
+    await getMic();
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    log('Gathering ICE candidates…');
+    await waitIce();
+    log('Publishing offer…');
+    await writeSignal(room, 'offer', JSON.stringify(pc.localDescription));
+    log('Offer posted — waiting for peer…', 'ok');
+    setStatus('Room ' + room + ' live · share code with peer', 'working');
+    document.getElementById('call-room-id').textContent = room;
+    pollForAnswer(room);
+  } catch (e) {
+    log('Error: ' + e.message, 'err');
+    setStatus('Failed', 'dead');
   }
 }
 
-/* ════════════════════════════════════════════
-   ACTIONS
-   ════════════════════════════════════════════ */
-
-function doPing() {
-  getSheet();
-  return { msg: 'pong', ts: Date.now() };
+function pollForAnswer(room) {
+  log('Polling for answer every 3 s…');
+  pollTimer = setInterval(async () => {
+    if (answerSet) return;
+    try {
+      const payload = await readSignal(room, 'answer');
+      if (payload && pc.signalingState === 'have-local-offer') {
+        answerSet = true;
+        clearInterval(pollTimer);
+        log('Answer received!', 'ok');
+        await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(payload)));
+        setStatus('Handshaking…', 'working');
+      }
+    } catch (e) { log('Poll error: ' + e.message, 'warn'); }
+  }, 3000);
 }
 
-function doStatus() {
-  var sheet = getSheet();
-  var count = Math.max(0, sheet.getLastRow() - 1);
-  return { rows: count, maxRooms: MAX_ROOMS, ts: Date.now() };
-}
+/* ════════════════════════════════════════
+   JOIN FLOW
+   ════════════════════════════════════════ */
+async function startJoin() {
+  const room = (document.getElementById('room-join').value || '').trim().toUpperCase();
+  if (!room)   { alert('Enter the room code'); return; }
+  if (!getUrl()) { alert('Enter your relay URL first'); return; }
 
-function doWrite(room, role, payload) {
-  if (!room)    throw new Error('Missing: room');
-  if (!role)    throw new Error('Missing: role');
-  if (!payload) throw new Error('Missing: payload');
-
-  room = sanitize(room);
-  role = sanitize(role);
-
-  var sheet = getSheet();
-  pruneExpired(sheet);
-
-  var rows = sheet.getDataRange().getValues();
-  var now  = Date.now();
-
-  for (var i = 1; i < rows.length; i++) {
-    if (rows[i][0] === room && rows[i][1] === role) {
-      sheet.getRange(i + 1, 3).setValue(payload);
-      sheet.getRange(i + 1, 4).setValue(now);
-      return { written: true, updated: true };
-    }
-  }
-
-  if (rows.length - 1 >= MAX_ROOMS) {
-    throw new Error('Relay at capacity. Try again later.');
-  }
-
-  sheet.appendRow([room, role, payload, now]);
-  return { written: true, updated: false };
-}
-
-function doRead(room, role) {
-  if (!room) throw new Error('Missing: room');
-  if (!role) throw new Error('Missing: role');
-
-  room = sanitize(room);
-  role = sanitize(role);
-
-  var sheet = getSheet();
-  var rows  = sheet.getDataRange().getValues();
-  var now   = Date.now();
-
-  for (var i = 1; i < rows.length; i++) {
-    if (rows[i][0] === room && rows[i][1] === role) {
-      var ts = Number(rows[i][3]);
-      if (now - ts > TTL_MS) return { payload: null, reason: 'expired' };
-      return { payload: rows[i][2], age: now - ts };
-    }
-  }
-  return { payload: null, reason: 'not_found' };
-}
-
-function doClear(room) {
-  if (!room) throw new Error('Missing: room');
-  room = sanitize(room);
-
-  var sheet   = getSheet();
-  var rows    = sheet.getDataRange().getValues();
-  var deleted = 0;
-
-  for (var i = rows.length - 1; i >= 1; i--) {
-    if (rows[i][0] === room) {
-      sheet.deleteRow(i + 1);
-      deleted++;
-    }
-  }
-  return { cleared: true, deleted: deleted };
-}
-
-/* ════════════════════════════════════════════
-   HELPERS
-   ════════════════════════════════════════════ */
-
-function getSheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss) ss = SpreadsheetApp.create('VoidTalk Signals');
-
-  var sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) {
-    sheet = ss.insertSheet(SHEET_NAME);
-    sheet.appendRow(['room', 'role', 'payload', 'timestamp']);
-    sheet.setFrozenRows(1);
-    sheet.setColumnWidth(3, 400);
-  }
-  return sheet;
-}
-
-function pruneExpired(sheet) {
-  var rows = sheet.getDataRange().getValues();
-  var now  = Date.now();
-  for (var i = rows.length - 1; i >= 1; i--) {
-    if (now - Number(rows[i][3]) > TTL_MS) sheet.deleteRow(i + 1);
+  currentRoom = room; role = 'guest';
+  try {
+    setStatus('Fetching offer for room ' + room + '…', 'working');
+    log('Looking up offer: ' + room, 'info');
+    const payload = await readSignal(room, 'offer');
+    if (!payload) throw new Error('No offer found — is the host ready?');
+    log('Offer found, creating answer…');
+    newPC();
+    await getMic();
+    await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(payload)));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    log('Gathering ICE candidates…');
+    await waitIce();
+    log('Publishing answer…');
+    await writeSignal(room, 'answer', JSON.stringify(pc.localDescription));
+    log('Answer posted — connecting…', 'ok');
+    setStatus('Answer sent · connecting…', 'working');
+    document.getElementById('call-room-id').textContent = room;
+  } catch (e) {
+    log('Error: ' + e.message, 'err');
+    setStatus('Failed', 'dead');
   }
 }
 
-function sanitize(str) {
-  return String(str).replace(/[^a-zA-Z0-9\-_]/g, '').substring(0, 64);
+/* ════════════════════════════════════════
+   CALL MANAGEMENT
+   ════════════════════════════════════════ */
+function showCall() {
+  log('🔒 Encrypted call live!', 'ok');
+  setStatus('Connected · Room ' + currentRoom, 'live');
+  hide('setup-flow'); show('call-screen');
+  callStart = Date.now();
+  durTimer  = setInterval(() => {
+    const s  = Math.floor((Date.now() - callStart) / 1000);
+    document.getElementById('dur').textContent =
+      String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }, 1000);
+  animateLocalViz();
+  setTimeout(() => clearSignals(currentRoom), 5000);
 }
 
-function respond(data) {
-  return ContentService
-    .createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
+function onDrop() {
+  log('Connection dropped', 'warn');
+  setStatus('Disconnected', 'dead');
+  clearInterval(durTimer);
+  cancelAnimationFrame(vizAnim);
 }
+
+function hangUp() {
+  if (pc)          { pc.close(); pc = null; }
+  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  clearInterval(pollTimer);
+  clearInterval(durTimer);
+  cancelAnimationFrame(vizAnim);
+  callShown = false;
+  answerSet = false;
+  clearSignals(currentRoom);
+  log('Call ended');
+  setStatus('Idle', 'idle');
+  hide('call-screen'); show('setup-flow');
+  document.getElementById('room-host').value = '';
+  document.getElementById('room-join').value = '';
+  document.getElementById('dur').textContent = '00:00';
+}
+
+function toggleMute() {
+  muted = !muted;
+  if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = !muted);
+  const btn = document.getElementById('mute-btn');
+  btn.textContent = muted ? '🔇' : '🎙';
+  btn.className   = 'ctrl ' + (muted ? 'ctrl-muted' : 'ctrl-default');
+  log(muted ? 'Muted' : 'Unmuted');
+}
+
+function toggleVol() { document.getElementById('vol-strip').classList.toggle('open'); }
+function setVol(v)   { document.getElementById('remoteAudio').volume = Math.min(1, parseFloat(v)); }
+
+/* ════════════════════════════════════════
+   VISUALIZER
+   ════════════════════════════════════════ */
+function animateLocalViz() {
+  if (!localStream) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaStreamSource(localStream);
+    const an  = ctx.createAnalyser(); an.fftSize = 32;
+    src.connect(an); drawViz(an);
+  } catch (e) {}
+}
+
+function animateViz(stream) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaStreamSource(stream);
+    const an  = ctx.createAnalyser(); an.fftSize = 32;
+    src.connect(an); drawViz(an);
+  } catch (e) {}
+}
+
+function drawViz(an) {
+  const bars = document.querySelectorAll('.vbar');
+  const data = new Uint8Array(an.frequencyBinCount);
+  function frame() {
+    an.getByteFrequencyData(data);
+    bars.forEach((b, i) => { b.style.height = (3 + (data[i % data.length] || 0) / 255 * 29) + 'px'; });
+    vizAnim = requestAnimationFrame(frame);
+  }
+  frame();
+}
+
+/* ════════════════════════════════════════
+   INIT
+   ════════════════════════════════════════ */
+genRoom();
+</script>
+</body>
+</html>
