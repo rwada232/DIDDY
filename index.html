@@ -540,7 +540,7 @@ input[type=range]{
       <div class="logo-ver">v2.0</div>
     </div>
     <div class="tagline">
-      <em>WebRTC</em> · <em>E2E</em> · Google Apps Script Relay · No third parties
+      <em>WebRTC</em> · <em>E2E</em> · Node.js Relay · Railway · No third parties
     </div>
   </header>
 
@@ -552,12 +552,12 @@ input[type=range]{
     </button>
     <div class="setup-body">
       <div class="setup-steps">
-        <div class="step">Go to <a href="https://script.google.com" target="_blank">script.google.com</a> → New project</div>
-        <div class="step">Paste the entire contents of <code>Code.gs</code> into the editor</div>
-        <div class="step">Click <strong>Deploy → New deployment → Web App</strong></div>
-        <div class="step">Set <em>Execute as:</em> <code>Me</code> &nbsp;·&nbsp; <em>Access:</em> <code>Anyone</code></div>
-        <div class="step">Copy the Web App URL, paste it below, click <em>Test</em></div>
-        <div class="step">Share the same URL + a room code with your peer — done</div>
+        <div class="step">Create a new GitHub repo and push <code>server.js</code> + <code>package.json</code> from this project</div>
+        <div class="step">Go to <a href="https://railway.app" target="_blank">railway.app</a> → New Project → Deploy from GitHub repo</div>
+        <div class="step">Select your repo — Railway auto-detects Node.js and runs <code>npm start</code></div>
+        <div class="step">In Railway → Settings → Networking → Generate Domain</div>
+        <div class="step">Paste that domain URL below (e.g. <code>https://voidtalk-relay.up.railway.app</code>)</div>
+        <div class="step">Share the same URL with your peer — no tokens, no config needed on their end</div>
       </div>
     </div>
   </div>
@@ -566,12 +566,12 @@ input[type=range]{
   <div class="card">
     <div class="card-header">
       <div class="card-header-icon">⬡</div>
-      <div class="card-title">Relay Endpoint</div>
+      <div class="card-title">Railway Relay URL</div>
     </div>
     <div class="card-body">
       <div class="field">
-        <div class="label">Apps Script Web App URL <span class="label-req">REQUIRED</span></div>
-        <input type="text" id="script-url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false">
+        <div class="label">Relay URL <span class="label-req">REQUIRED</span></div>
+        <input type="text" id="script-url" placeholder="https://your-relay.up.railway.app" autocomplete="off" spellcheck="false">
       </div>
       <button class="btn btn-ghost btn-sm" onclick="pingServer()">▸ Test connection</button>
     </div>
@@ -734,40 +734,27 @@ function switchTab(t) {
 }
 
 /* ════════════════════════════════════════
-   APPS SCRIPT RELAY  (JSONP — bypasses CORS)
+   NODE / RAILWAY RELAY
    ════════════════════════════════════════ */
-function gas(params) {
-  return new Promise((resolve, reject) => {
-    const url = getUrl();
-    if (!url) { reject(new Error('No relay URL set')); return; }
+function getUrl() { return document.getElementById('script-url').value.trim().replace(/\/$/, ''); }
 
-    const cb    = '__gas_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
-    const timer = setTimeout(() => { cleanup(); reject(new Error('Timeout — relay did not respond in 10 s')); }, 10000);
-
-    function cleanup() {
-      clearTimeout(timer);
-      delete window[cb];
-      if (tag.parentNode) tag.parentNode.removeChild(tag);
-    }
-
-    window[cb] = json => {
-      cleanup();
-      if (!json.ok) reject(new Error(json.error || 'Relay error'));
-      else resolve(json);
-    };
-
-    const tag = document.createElement('script');
-    tag.src   = url + '?' + new URLSearchParams({ ...params, callback: cb });
-    tag.onerror = () => { cleanup(); reject(new Error('Could not reach relay — check URL')); };
-    document.head.appendChild(tag);
-  });
+async function relay(method, path, body = null) {
+  const url = getUrl();
+  if (!url) throw new Error('No relay URL set');
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res  = await fetch(url + path, opts);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Relay error');
+  return json;
 }
 
 async function pingServer() {
   try {
     setStatus('Pinging relay…', 'working');
     log('Testing relay…');
-    const r = await gas({ action: 'ping' });
+    const r = await relay('GET', '/ping');
     log('Relay online · ' + r.result.msg, 'ok');
     setStatus('Relay connected', 'live');
   } catch (e) {
@@ -777,16 +764,16 @@ async function pingServer() {
 }
 
 async function writeSignal(room, role, payload) {
-  await gas({ action: 'write', room, role, payload: encodeURIComponent(payload) });
+  await relay('POST', '/write', { room, role, payload });
 }
 
 async function readSignal(room, role) {
-  const r = await gas({ action: 'read', room, role });
-  return r.result.payload ? decodeURIComponent(r.result.payload) : null;
+  const r = await relay('GET', `/read?room=${encodeURIComponent(room)}&role=${encodeURIComponent(role)}`);
+  return r.result.payload || null;
 }
 
 async function clearSignals(room) {
-  await gas({ action: 'clear', room }).catch(() => {});
+  await relay('DELETE', `/clear?room=${encodeURIComponent(room)}`).catch(() => {});
 }
 
 /* ════════════════════════════════════════
