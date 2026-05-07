@@ -540,7 +540,7 @@ input[type=range]{
       <div class="logo-ver">v2.0</div>
     </div>
     <div class="tagline">
-      <em>WebRTC</em> · <em>E2E</em> · Node.js Relay · Railway · No third parties
+      <em>WebRTC</em> · <em>E2E</em> · Cloudflare Workers · No third parties
     </div>
   </header>
 
@@ -552,12 +552,11 @@ input[type=range]{
     </button>
     <div class="setup-body">
       <div class="setup-steps">
-        <div class="step">Create a new GitHub repo and push <code>server.js</code> + <code>package.json</code> from this project</div>
-        <div class="step">Go to <a href="https://railway.app" target="_blank">railway.app</a> → New Project → Deploy from GitHub repo</div>
-        <div class="step">Select your repo — Railway auto-detects Node.js and runs <code>npm start</code></div>
-        <div class="step">In Railway → Settings → Networking → Generate Domain</div>
-        <div class="step">Paste that domain URL below (e.g. <code>https://voidtalk-relay.up.railway.app</code>)</div>
-        <div class="step">Share the same URL with your peer — no tokens, no config needed on their end</div>
+        <div class="step">Push <code>worker.js</code> and <code>wrangler.toml</code> to a new GitHub repo</div>
+        <div class="step">Go to <a href="https://dash.cloudflare.com" target="_blank">dash.cloudflare.com</a> → Workers & Pages → KV → Create namespace → name it <code>SIGNALS</code> → copy the ID into <code>wrangler.toml</code></div>
+        <div class="step">Go to Workers & Pages → Create → Connect to Git → pick your repo → deploy</div>
+        <div class="step">Cloudflare gives you a URL like <code>https://voidtalk-relay.workers.dev</code></div>
+        <div class="step">Paste that URL below — share it with your peer, done</div>
       </div>
     </div>
   </div>
@@ -566,12 +565,12 @@ input[type=range]{
   <div class="card">
     <div class="card-header">
       <div class="card-header-icon">⬡</div>
-      <div class="card-title">Railway Relay URL</div>
+      <div class="card-title">Cloudflare Worker URL</div>
     </div>
     <div class="card-body">
       <div class="field">
         <div class="label">Relay URL <span class="label-req">REQUIRED</span></div>
-        <input type="text" id="script-url" placeholder="https://your-relay.up.railway.app" autocomplete="off" spellcheck="false">
+        <input type="text" id="script-url" placeholder="https://voidtalk-relay.workers.dev" autocomplete="off" spellcheck="false">
       </div>
       <button class="btn btn-ghost btn-sm" onclick="pingServer()">▸ Test connection</button>
     </div>
