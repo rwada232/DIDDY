@@ -563,7 +563,7 @@ input[type=range]{
 
   <!-- ══ GITHUB CONFIG — edit these two lines before deploying ══ -->
   <script>
-    const GH_OWNER = rwada232';
+    const GH_OWNER = 'rwada232';
     const GH_REPO  = 'DIDDY';
   </script>
 
@@ -746,10 +746,24 @@ function sigPath(room, role) {
   return `signals/${room}__${role}.json`;
 }
 
+async function ensureSignalsDir() {
+  const apiUrl = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/signals/.gitkeep`;
+  const check  = await fetch(apiUrl, { headers: ghHeaders() });
+  if (check.ok) return; // already exists
+  await fetch(apiUrl, {
+    method: 'PUT',
+    headers: ghHeaders(),
+    body: JSON.stringify({ message: 'init: create signals directory', content: btoa('') }),
+  });
+}
+
 async function writeSignal(room, role, payload) {
   const path   = sigPath(room, role);
   const apiUrl = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${path}`;
   const content = btoa(JSON.stringify({ payload, ts: Date.now() }));
+
+  // Ensure signals/ dir exists first
+  await ensureSignalsDir();
 
   let sha;
   try {
