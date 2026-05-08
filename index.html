@@ -540,7 +540,7 @@ input[type=range]{
       <div class="logo-ver">v2.0</div>
     </div>
     <div class="tagline">
-      <em>WebRTC · E2E · Cloudflare Workers · No third parties
+      <em>WebRTC · E2E · GitHub Relay · Iran-proof</em>
     </div>
   </header>
 
@@ -548,21 +548,24 @@ input[type=range]{
   <div class="setup-card" id="setup-accordion">
     <button class="setup-toggle" onclick="toggleSetup()">
       <span class="setup-toggle-icon">▶</span>
-      <span class="setup-toggle-label">HOW TO DEPLOY THE BACKEND</span>
+      <span class="setup-toggle-label">HOW TO SET UP</span>
     </button>
     <div class="setup-body">
       <div class="setup-steps">
-        <div class="step">Push <code>worker.js</code> and <code>wrangler.toml</code> to a new GitHub repo</div>
-        <div class="step">Go to <a href="https://dash.cloudflare.com" target="_blank">dash.cloudflare.com</a> → Workers & Pages → KV → Create namespace → name it <code>SIGNALS</code> → copy the ID into <code>wrangler.toml</code></div>
-        <div class="step">Go to Workers & Pages → Create → Connect to Git → pick your repo → deploy</div>
-        <div class="step">Cloudflare gives you a URL like <code>https://epsteintalk-relay.workers.dev</code></div>
-        <div class="step">Paste that URL below — share it with your peer, done</div>
+        <div class="step">Create a <strong>public</strong> GitHub repo, push <code>index.html</code> into it, enable GitHub Pages on the <code>main</code> branch</div>
+        <div class="step">Edit the two lines at the top of <code>index.html</code>: set <code>GH_OWNER</code> and <code>GH_REPO</code> to your username and repo name, push again</div>
+        <div class="step">Each peer goes to <a href="https://github.com/settings/tokens/new" target="_blank">github.com/settings/tokens/new</a> → Classic token → check <code>public_repo</code> only → generate</div>
+        <div class="step">Each peer pastes <strong>their own token</strong> into the token field — tokens stay in the browser, never sent anywhere else</div>
+        <div class="step">Host creates a room, shares the room code. Peer enters it and joins. Done</div>
       </div>
     </div>
   </div>
 
-  <!-- Relay URL hardcoded — change this to your Cloudflare Worker URL -->
-  <script>const RELAY_URL = 'https://epsteintalk-relay.workers.dev';</script>
+  <!-- ══ GITHUB CONFIG — edit these two lines before deploying ══ -->
+  <script>
+    const GH_OWNER = 'REPLACE_WITH_YOUR_GITHUB_USERNAME';
+    const GH_REPO  = 'REPLACE_WITH_YOUR_REPO_NAME';
+  </script>
 
   <!-- ══ SETUP FLOW ══ -->
   <div id="setup-flow">
@@ -572,6 +575,10 @@ input[type=range]{
         <div class="card-title">Session</div>
       </div>
       <div class="card-body">
+        <div class="field">
+          <div class="label">GitHub Token <span class="label-req">YOUR OWN PAT</span></div>
+          <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+        </div>
         <div class="tabs">
           <button class="tab on" id="tab-host" onclick="switchTab('host')">⬡ Start Room</button>
           <button class="tab" id="tab-join" onclick="switchTab('join')">⬢ Join Room</button>
@@ -602,7 +609,7 @@ input[type=range]{
   <!-- ══ STATUS ══ -->
   <div class="status">
     <div class="pulse idle" id="pulse"></div>
-    <span id="status-text">Paste your relay URL above to begin</span>
+    <span id="status-text">Enter your GitHub token to begin</span>
   </div>
 
   <!-- ══ CALL SCREEN ══ -->
@@ -646,7 +653,7 @@ input[type=range]{
     </div>
     <div class="log-inner" id="log">
       <div class="log-entry">
-        <span class="log-ts">—</span>EpsteinTalk ready. Configure your relay URL above.
+        <span class="log-ts">—</span>EpsteinTalk ready. Enter your GitHub token above.
       </div>
     </div>
   </div>
@@ -700,7 +707,6 @@ function setStatus(txt, state = 'idle') {
 
 function show(id) { document.getElementById(id).style.display = ''; }
 function hide(id) { document.getElementById(id).style.display = 'none'; }
-function getUrl() { return document.getElementById('script-url').value.trim(); }
 
 function toggleSetup() {
   document.getElementById('setup-accordion').classList.toggle('setup-open');
@@ -721,46 +727,87 @@ function switchTab(t) {
 }
 
 /* ════════════════════════════════════════
-   NODE / RAILWAY RELAY
+   GITHUB RELAY
+   Writes signals as files via GitHub Contents API (needs token).
+   Reads via raw.githubusercontent.com — no auth, works in Iran.
    ════════════════════════════════════════ */
-function getUrl() { return (typeof RELAY_URL !== 'undefined' ? RELAY_URL : '').replace(/\/$/, ''); }
+function getToken() { return document.getElementById('gh-token').value.trim(); }
 
-async function relay(method, path, body = null) {
-  const url = getUrl();
-  if (!url) throw new Error('No relay URL set');
-  const opts = { method, headers: { 'Content-Type': 'application/json' } };
-  if (body) opts.body = JSON.stringify(body);
-  const res  = await fetch(url + path, opts);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error || 'Relay error');
-  return json;
+function ghHeaders() {
+  return {
+    'Authorization': 'Bearer ' + getToken(),
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json',
+  };
 }
 
-async function pingServer() {
-  try {
-    setStatus('Pinging relay…', 'working');
-    log('Testing relay…');
-    const r = await relay('GET', '/ping');
-    log('Relay online · ' + r.result.msg, 'ok');
-    setStatus('Relay connected', 'live');
-  } catch (e) {
-    log('Ping failed: ' + e.message, 'err');
-    setStatus('Relay unreachable', 'dead');
-  }
+function sigPath(room, role) {
+  return `signals/${room}__${role}.json`;
 }
 
 async function writeSignal(room, role, payload) {
-  await relay('POST', '/write', { room, role, payload });
+  const path   = sigPath(room, role);
+  const apiUrl = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${path}`;
+  const content = btoa(JSON.stringify({ payload, ts: Date.now() }));
+
+  let sha;
+  try {
+    const check = await fetch(apiUrl, { headers: ghHeaders() });
+    if (check.ok) { const d = await check.json(); sha = d.sha; }
+  } catch (_) {}
+
+  const body = { message: `signal: ${room}/${role}`, content };
+  if (sha) body.sha = sha;
+
+  const res = await fetch(apiUrl, { method: 'PUT', headers: ghHeaders(), body: JSON.stringify(body) });
+  if (!res.ok) throw new Error('Write failed: GitHub ' + res.status + ' — check token has public_repo scope');
 }
 
 async function readSignal(room, role) {
-  const r = await relay('GET', `/read?room=${encodeURIComponent(room)}&role=${encodeURIComponent(role)}`);
-  return r.result.payload || null;
+  const path = sigPath(room, role);
+  const url  = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/main/${path}?_=${Date.now()}`;
+  const res  = await fetch(url);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('Read failed: ' + res.status);
+  try {
+    const data = await res.json();
+    if (Date.now() - data.ts > 15 * 60 * 1000) return null;
+    return data.payload;
+  } catch { return null; }
 }
 
 async function clearSignals(room) {
-  await relay('DELETE', `/clear?room=${encodeURIComponent(room)}`).catch(() => {});
+  for (const role of ['offer', 'answer']) {
+    try {
+      const path   = sigPath(room, role);
+      const apiUrl = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${path}`;
+      const check  = await fetch(apiUrl, { headers: ghHeaders() });
+      if (!check.ok) continue;
+      const { sha } = await check.json();
+      await fetch(apiUrl, {
+        method: 'DELETE',
+        headers: ghHeaders(),
+        body: JSON.stringify({ message: `clear: ${room}/${role}`, sha }),
+      });
+    } catch (_) {}
+  }
+}
+
+async function pingServer() {
+  const token = getToken();
+  if (!token) { log('No token set', 'err'); setStatus('Enter your GitHub token', 'dead'); return; }
+  try {
+    setStatus('Testing GitHub…', 'working');
+    log('Testing GitHub relay…');
+    const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}`, { headers: ghHeaders() });
+    if (!res.ok) throw new Error('GitHub ' + res.status + ' — check token + repo name');
+    log('GitHub relay reachable ✓', 'ok');
+    setStatus('GitHub relay connected', 'live');
+  } catch (e) {
+    log('Ping failed: ' + e.message, 'err');
+    setStatus('Unreachable', 'dead');
+  }
 }
 
 /* ════════════════════════════════════════
@@ -813,8 +860,8 @@ async function waitIce() {
    ════════════════════════════════════════ */
 async function startHost() {
   const room = (document.getElementById('room-host').value || '').trim().toUpperCase();
-  if (!room)   { alert('Enter a room code first'); return; }
-  if (!getUrl()) { alert('Enter your relay URL first'); return; }
+  if (!room)       { alert('Enter a room code first'); return; }
+  if (!getToken()) { alert('Enter your GitHub token first'); return; }
 
   currentRoom = room; role = 'host';
   try {
@@ -860,8 +907,8 @@ function pollForAnswer(room) {
    ════════════════════════════════════════ */
 async function startJoin() {
   const room = (document.getElementById('room-join').value || '').trim().toUpperCase();
-  if (!room)   { alert('Enter the room code'); return; }
-  if (!getUrl()) { alert('Enter your relay URL first'); return; }
+  if (!room)       { alert('Enter the room code'); return; }
+  if (!getToken()) { alert('Enter your GitHub token first'); return; }
 
   currentRoom = room; role = 'guest';
   try {
