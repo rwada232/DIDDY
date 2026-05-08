@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VOIDTALK</title>
+<title>EPSTEINTALK</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;700;800&family=Space+Grotesk:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -536,11 +536,11 @@ input[type=range]{
   <!-- ══ HEADER ══ -->
   <header>
     <div class="logo-row">
-      <div class="logo">VOID<span>TALK</span></div>
+      <div class="logo">EPSTEIN<span>TALK</span></div>
       <div class="logo-ver">v2.0</div>
     </div>
     <div class="tagline">
-      <em>WebRTC</em> · <em>E2E</em> · Cloudflare Workers · No third parties
+      <em>WebRTC · E2E · Cloudflare Workers · No third parties
     </div>
   </header>
 
@@ -555,26 +555,14 @@ input[type=range]{
         <div class="step">Push <code>worker.js</code> and <code>wrangler.toml</code> to a new GitHub repo</div>
         <div class="step">Go to <a href="https://dash.cloudflare.com" target="_blank">dash.cloudflare.com</a> → Workers & Pages → KV → Create namespace → name it <code>SIGNALS</code> → copy the ID into <code>wrangler.toml</code></div>
         <div class="step">Go to Workers & Pages → Create → Connect to Git → pick your repo → deploy</div>
-        <div class="step">Cloudflare gives you a URL like <code>https://voidtalk-relay.workers.dev</code></div>
+        <div class="step">Cloudflare gives you a URL like <code>https://epsteintalk-relay.workers.dev</code></div>
         <div class="step">Paste that URL below — share it with your peer, done</div>
       </div>
     </div>
   </div>
 
-  <!-- ══ RELAY CONFIG ══ -->
-  <div class="card">
-    <div class="card-header">
-      <div class="card-header-icon">⬡</div>
-      <div class="card-title">Cloudflare Worker URL</div>
-    </div>
-    <div class="card-body">
-      <div class="field">
-        <div class="label">Relay URL <span class="label-req">REQUIRED</span></div>
-        <input type="text" id="script-url" placeholder="https://voidtalk-relay.workers.dev" autocomplete="off" spellcheck="false">
-      </div>
-      <button class="btn btn-ghost btn-sm" onclick="pingServer()">▸ Test connection</button>
-    </div>
-  </div>
+  <!-- Relay URL hardcoded — change this to your Cloudflare Worker URL -->
+  <script>const RELAY_URL = 'https://epsteintalk-relay.workers.dev';</script>
 
   <!-- ══ SETUP FLOW ══ -->
   <div id="setup-flow">
@@ -658,7 +646,7 @@ input[type=range]{
     </div>
     <div class="log-inner" id="log">
       <div class="log-entry">
-        <span class="log-ts">—</span>VoidTalk ready. Configure your relay URL above.
+        <span class="log-ts">—</span>EpsteinTalk ready. Configure your relay URL above.
       </div>
     </div>
   </div>
@@ -735,7 +723,7 @@ function switchTab(t) {
 /* ════════════════════════════════════════
    NODE / RAILWAY RELAY
    ════════════════════════════════════════ */
-function getUrl() { return document.getElementById('script-url').value.trim().replace(/\/$/, ''); }
+function getUrl() { return (typeof RELAY_URL !== 'undefined' ? RELAY_URL : '').replace(/\/$/, ''); }
 
 async function relay(method, path, body = null) {
   const url = getUrl();
